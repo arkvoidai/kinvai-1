@@ -320,6 +320,18 @@ p {
   animation: kv-skeleton-fade 1.6s ease-in-out infinite;
 }
 
+/* Shared-element View Transitions (cover only) */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+  animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* Editorial notched corner for the "Made for" stone tile */
+.kv-notched-corner {
+  clip-path: polygon(0 0, calc(100% - 40px) 0, 100% 40px, 100% 100%, 0 100%);
+}
+
 /* Reduced Motion Respect */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -327,6 +339,11 @@ p {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
   .kv-marquee-track {
     animation: none !important;

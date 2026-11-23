@@ -60,6 +60,7 @@ interface CartContextValue {
   openSignInSheet: (nextPath?: string) => void;
   closeSignInSheet: () => void;
   addToCart: (product: Product, isPreviewData: boolean, flightOrigin?: CartFlightSource) => boolean;
+  buyNow: (product: Product, isPreviewData: boolean) => boolean;
   removeFromCart: (productId: string) => void;
   clearCart: () => void;
   isInCart: (productId: string) => boolean;
@@ -235,6 +236,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [ownedIds]
   );
 
+  const buyNow = useCallback(
+    (product: Product, isPreviewData: boolean): boolean => {
+      if (isPreviewData || ownedIds.includes(product.id)) {
+        return false;
+      }
+      setProductCache((prev) => (prev[product.id] ? prev : { ...prev, [product.id]: product }));
+      cartStore.replace([product.id]);
+      return true;
+    },
+    [ownedIds]
+  );
+
   const removeFromCart = useCallback((productId: string) => {
     cartStore.remove(productId);
   }, []);
@@ -299,6 +312,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       openSignInSheet,
       closeSignInSheet,
       addToCart,
+      buyNow,
       removeFromCart,
       clearCart,
       isInCart,
@@ -324,6 +338,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       openSignInSheet,
       closeSignInSheet,
       addToCart,
+      buyNow,
       removeFromCart,
       clearCart,
       isInCart,

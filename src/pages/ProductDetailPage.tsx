@@ -1,303 +1,474 @@
-import { useEffect, useState, type MouseEvent } from 'react';
-import { useParams } from 'react-router-dom';
-import { Check, Download, FolderCheck, Heart, Infinity as InfinityIcon, ShieldCheck } from 'lucide-react';
-import { ProductCard } from '../components/layout/ProductCard';
-import {
-  Breadcrumb,
-  Button,
-  IconButton,
-  PriceTag,
-  ProductCover,
-  RatingStars,
-  Skeleton,
-  TagPill,
-  Tile,
-  useToast,
-} from '../components/primitives';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { MobileStickyBuyBar } from '../components/product/MobileStickyBuyBar';
+import { ProductEditorialSections } from '../components/product/ProductEditorialSections';
+import { ProductGallery } from '../components/product/ProductGallery';
+import { ProductLightbox } from '../components/product/ProductLightbox';
+import { ProductPurchaseCard } from '../components/product/ProductPurchaseCard';
+import { Breadcrumb, Button, Skeleton, TagPill, Tile, useToast } from '../components/primitives';
+import { ShopErrorTile } from '../components/shop/ShopErrorTile';
+import { useAuth } from '../lib/auth/AuthProvider';
 import { useCart } from '../lib/cart/CartProvider';
-import { getProductDescription } from '../lib/data/format';
 import { getProductBySlug } from '../lib/data/repository';
 import type { ProductDetail } from '../lib/data/types';
 import { getProductOgImageUrl } from '../lib/media/imagePipeline';
+import { collectLightboxImages } from '../lib/product/productHelpers';
 import { usePageMeta } from '../lib/seo/usePageMeta';
+
+function useIsDesktop(): boolean {
+  const [isDesktop, setIsDesktop] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
+  return isDesktop;
+}
 
 export function ProductDetailPage() {
   const { slug = '' } = useParams();
-  const [detail, setDetail] = useState<ProductDetail | null>(null);
-  const [isPreviewData, setIsPreviewData] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  const { addToCart, removeFromCart, isInCart, isOwnedProduct, isSaved, toggleSaved, setCartOpen } =
-    useCart();
+  const navigate = useNavigate();
+  const isDesktop = useIsDesktop();
+  const { user, profile, loading: authLoading } = useAuth();
+  const {
+    collections,
+    addToCart,
+    buyNow,
+    removeFromCart,
+    isInCart,
+    isOwnedProduct,
+    isSaved,
+    toggleSaved,
+    setCartOpen,
+  } = useCart();
   const { toast } = useToast();
 
+  const [detail, setDetail] = useState<ProductDetail | null>(null);
+  const [isPreviewData, setIsPreviewData] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [reloadNonce, setReloadNonce] = useState(0);
+
+  // Add-to-cart 600ms drawn-check morph state
+  const [justAdded, setJustAdded] = useState(false);
+  const addedTimerRef = useRef<number | null>(null);
+
+  // Lightbox state
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  // Mobile sticky buy bar visibility (appears once primary purchase buttons leave viewport)
+  const purchaseAnchorRef = useRef<HTMLDivElement | null>(null);
+  const [stickyBarVisible, setStickyBarVisible] = useState(false);
+
+  const isNotFound = !loading && !loadError && !detail;
+
   usePageMeta({
-    title: detail?.product.seo_title || (detail ? `${detail.product.name} — Kinvai` : 'Product — Kinvai'),
-    description:
-      detail?.product.seo_description ||
-      detail?.product.short_description ||
-      'Downloadable digital system from Kinvai.',
-    ogImage: getProductOgImageUrl(detail?.product.cover_path),
+    title: isNotFound
+      ? 'Product not found — Kinvai'
+      : detail?.product.seo_title || (detail ? `${detail.product.name} — Kinvai` : 'Product — Kinvai'),
+    description: isNotFound
+      ? 'The requested Kinvai product could not be found.'
+      : detail?.product.seo_description ||
+        detail?.product.short_description ||
+        'Downloadable digital system from Kinvai.',
+    ogImage: detail ? getProductOgImageUrl(detail.product.cover_path) : null,
+    noindex: isNotFound || detail?.product.status === 'archived',
+    canonicalPath: detail ? `/products/${detail.product.slug}` : null,
   });
 
   useEffect(() => {
+    if (authLoading) return;
     let active = true;
     setLoading(true);
-    getProductBySlug(slug).then((res) => {
+    setLoadError(null);
+    setLightboxOpen(false);
+    setJustAdded(false);
+
+    getProductBySlug(slug, {
+      userId: user?.id ?? null,
+      isAdmin: Boolean(profile?.is_admin),
+    }).then((res) => {
       if (!active) return;
-      setDetail(res.data);
-      setIsPreviewData(res.isPreviewData);
+      if (res.error && !res.data) {
+        setDetail(null);
+        setLoadError(res.error);
+      } else {
+        setDetail(res.data);
+        setIsPreviewData(res.isPreviewData);
+      }
       setLoading(false);
     });
+
     return () => {
       active = false;
     };
-  }, [slug]);
+  }, [slug, user?.id, profile?.is_admin, authLoading, reloadNonce]);
 
+  useEffect(() => {
+    return () => {
+      if (addedTimerRef.current !== null) {
+        window.clearTimeout(addedTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Observe primary purchase actions on phones to slide up MobileStickyBuyBar when scrolled past
+  useEffect(() => {
+    if (isDesktop || loading || !detail) {
+      setStickyBarVisible(false);
+      return;
+    }
+
+    let rafId = 0;
+    const evaluateVisibility = () => {
+      rafId = 0;
+      const node = purchaseAnchorRef.current;
+      if (!node) return;
+      const rect = node.getBoundingClientRect();
+      // Show sticky bar once the primary purchase controls scroll above the mobile top header
+      setStickyBarVisible(rect.bottom <= 68);
+    };
+
+    const scheduleCheck = () => {
+      if (rafId !== 0) return;
+      rafId = window.requestAnimationFrame(evaluateVisibility);
+    };
+
+    evaluateVisibility();
+
+    const node = purchaseAnchorRef.current;
+    const observer =
+      node && typeof IntersectionObserver !== 'undefined'
+        ? new IntersectionObserver(() => scheduleCheck(), { threshold: [0, 0.1, 1] })
+        : null;
+
+    if (observer && node) {
+      observer.observe(node);
+    }
+
+    window.addEventListener('scroll', scheduleCheck, { passive: true });
+    window.addEventListener('resize', scheduleCheck, { passive: true });
+
+    return () => {
+      if (rafId !== 0) window.cancelAnimationFrame(rafId);
+      observer?.disconnect();
+      window.removeEventListener('scroll', scheduleCheck);
+      window.removeEventListener('resize', scheduleCheck);
+    };
+  }, [isDesktop, loading, detail]);
+
+  const lightboxImages = useMemo(() => {
+    if (!detail) return [];
+    return collectLightboxImages(detail.product, detail.media);
+  }, [detail]);
+
+  const handleBack = useCallback(() => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      navigate(-1);
+    } else if (detail?.collection) {
+      navigate(`/collections/${detail.collection.slug}`);
+    } else {
+      navigate('/shop');
+    }
+  }, [navigate, detail?.collection]);
+
+  const handleShare = useCallback(async () => {
+    if (!detail) return;
+    const shareUrl =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/products/${detail.product.slug}`
+        : `/products/${detail.product.slug}`;
+
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: detail.product.name,
+          text: detail.product.tagline ?? 'Downloadable digital system from Kinvai.',
+          url: shareUrl,
+        });
+        return;
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
+      }
+    }
+
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        toast({
+          title: 'Link copied',
+          description: shareUrl,
+          tone: 'success',
+        });
+        return;
+      }
+    } catch {
+      // Fallback below
+    }
+
+    toast({
+      title: 'Share this link',
+      description: shareUrl,
+    });
+  }, [detail, toast]);
+
+  const handleToggleSave = useCallback(() => {
+    if (!detail) return;
+    const next = toggleSaved(detail.product.id);
+    toast({
+      title: next ? `Saved ${detail.product.name}` : 'Removed from saved',
+      undoLabel: 'Undo',
+      onUndo: () => toggleSaved(detail.product.id),
+    });
+  }, [detail, toggleSaved, toast]);
+
+  const handleAddToCart = useCallback(
+    (e: MouseEvent<HTMLButtonElement>) => {
+      if (!detail || isPreviewData) return;
+      const prod = detail.product;
+      if (isOwnedProduct(prod.id)) return;
+      if (isInCart(prod.id)) {
+        setCartOpen(true);
+        return;
+      }
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      const added = addToCart(prod, false, {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      });
+
+      if (!added) {
+        toast({
+          title: "That didn't work.",
+          description: 'Try again, or write to heyarkvoid@gmail.com.',
+          tone: 'error',
+        });
+        return;
+      }
+
+      setJustAdded(true);
+      if (addedTimerRef.current !== null) {
+        window.clearTimeout(addedTimerRef.current);
+      }
+
+      addedTimerRef.current = window.setTimeout(() => {
+        setJustAdded(false);
+        if (isDesktop) {
+          setCartOpen(true);
+        }
+      }, 600);
+
+      toast({
+        title: `Added ${prod.name}`,
+        description: '1 licence. Yours for life.',
+        tone: 'success',
+        undoLabel: 'Undo',
+        onUndo: () => removeFromCart(prod.id),
+      });
+    },
+    [detail, isPreviewData, isOwnedProduct, isInCart, addToCart, isDesktop, setCartOpen, toast, removeFromCart]
+  );
+
+  const handleBuyNow = useCallback(() => {
+    if (!detail || isPreviewData) return;
+    const ok = buyNow(detail.product, false);
+    if (!ok) {
+      toast({
+        title: "That didn't work.",
+        description: 'Try again, or write to heyarkvoid@gmail.com.',
+        tone: 'error',
+      });
+      return;
+    }
+    navigate('/checkout');
+  }, [detail, isPreviewData, buyNow, navigate, toast]);
+
+  const handleGoToCheckout = useCallback(() => {
+    navigate('/checkout');
+  }, [navigate]);
+
+  const handleOpenLightbox = useCallback((index: number) => {
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  }, []);
+
+  /* -------------------- LOADING SKELETON (Fixed geometry, zero layout shift) -------------------- */
   if (loading) {
     return (
-      <div className="kv-container py-10 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <Skeleton className="lg:col-span-7 h-[420px]" rounded="lg" />
-        <Skeleton className="lg:col-span-5 h-[420px]" rounded="lg" />
+      <div className="kv-container py-6 lg:py-10 flex flex-col gap-6">
+        <Skeleton className="h-9 w-64 rounded-full hidden lg:block" />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          <div className="lg:col-span-7 flex flex-col gap-4">
+            <Skeleton className="w-full aspect-[4/5] lg:aspect-auto lg:h-[580px] rounded-[28px] lg:rounded-[36px]" />
+            <div className="hidden lg:grid grid-cols-3 gap-3.5">
+              <Skeleton className="h-36 rounded-[24px]" />
+              <Skeleton className="h-36 rounded-[24px]" />
+              <Skeleton className="h-36 rounded-[24px]" />
+            </div>
+          </div>
+          <Skeleton className="lg:col-span-5 h-[560px] rounded-[28px] lg:rounded-[36px]" />
+        </div>
       </div>
     );
   }
 
+  /* -------------------- LIVE QUERY ERROR WITH RETRY -------------------- */
+  if (loadError) {
+    return (
+      <div className="kv-container py-12 md:py-16 max-w-3xl">
+        <ShopErrorTile
+          title="Could not load this product."
+          onRetry={() => setReloadNonce((n) => n + 1)}
+        />
+      </div>
+    );
+  }
+
+  /* -------------------- DESIGNED 404 FOR UNKNOWN SLUGS -------------------- */
   if (!detail) {
     return (
-      <div className="kv-container py-16 text-center flex flex-col items-center gap-4">
-        <h1 className="type-h2 font-semibold text-ink">Product not found.</h1>
-        <Button variant="primary" to="/shop">
-          Explore the shop
-        </Button>
+      <div className="kv-container py-14 md:py-24 max-w-2xl">
+        <Tile variant="white" radius="xl" padding="lg" className="flex flex-col items-start gap-5">
+          <TagPill>404 · Product not found</TagPill>
+          <h1 className="type-h1 font-semibold text-ink">
+            That system isn&apos;t on the <span className="font-accent-serif font-normal">shelf.</span>
+          </h1>
+          <p className="type-body text-ink-2 prose-measure">
+            The product may have been archived or the link may be misspelled. Browse the full shop
+            or check your account library if you purchased it earlier.
+          </p>
+          <div className="flex flex-wrap gap-2.5 pt-2">
+            <Button variant="primary" to="/shop">
+              Explore the shop
+            </Button>
+            <Button variant="secondary" to="/collections">
+              Collections
+            </Button>
+            <Button variant="secondary" to="/account">
+              Open my library
+            </Button>
+          </div>
+        </Tile>
       </div>
     );
   }
 
-  const { product, collection, related, ratingStats } = detail;
+  const { product, collection, media, related, ratingStats, reviews = [], userReview = null } =
+    detail;
   const saved = isSaved(product.id);
   const inCart = isInCart(product.id);
   const owned = isOwnedProduct(product.id);
-  const fullDescription = getProductDescription(product);
-
-  const handleAdd = (e: MouseEvent<HTMLButtonElement>) => {
-    if (isPreviewData || owned) return;
-    if (inCart) {
-      setCartOpen(true);
-      return;
-    }
-    const rect = e.currentTarget.getBoundingClientRect();
-    addToCart(product, false, {
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2,
-    });
-    toast({
-      title: `Added ${product.name}`,
-      description: '1 licence. Yours for life.',
-      tone: 'success',
-      undoLabel: 'Undo',
-      onUndo: () => removeFromCart(product.id),
-    });
-  };
 
   return (
-    <div className="kv-container py-8 md:py-12 flex flex-col gap-12">
-      <Breadcrumb
-        items={[
-          { label: 'Home', to: '/' },
-          { label: 'Shop', to: '/shop' },
-          ...(collection
-            ? [{ label: collection.name, to: `/collections/${collection.slug}` }]
-            : []),
-          { label: product.name },
-        ]}
-      />
+    <div className="kv-container pt-3 pb-28 lg:pt-8 lg:pb-20 flex flex-col gap-10 lg:gap-16">
+      {/* Desktop Breadcrumb pill row: Home / Collection / Product */}
+      <div className="hidden lg:flex items-center justify-between gap-4">
+        <div className="inline-flex items-center rounded-full bg-surface border border-line px-4 py-2">
+          <Breadcrumb
+            items={[
+              { label: 'Home', to: '/' },
+              ...(collection
+                ? [{ label: collection.name, to: `/collections/${collection.slug}` }]
+                : [{ label: 'Shop', to: '/shop' }]),
+              { label: product.name },
+            ]}
+          />
+        </div>
+        <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink-2">
+          {product.sku}
+        </span>
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-7 flex flex-col gap-4">
-          <ProductCover
+      {/* Main 12-col Product Bento (Wink Desktop / Mobile Shop App Phone) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start">
+        {/* LEFT — 7 COLUMNS */}
+        <div className="lg:col-span-7">
+          <ProductGallery
             product={product}
             collection={collection}
-            ratio="4/5"
-            size="lg"
-            priority
-            sizes="(max-width: 1024px) 100vw, 58vw"
-            className="rounded-[28px] max-w-[560px] mx-auto lg:mx-0"
+            media={media}
+            saved={saved}
+            isDesktop={isDesktop}
+            onBack={handleBack}
+            onToggleSave={handleToggleSave}
+            onShare={handleShare}
+            onOpenLightbox={handleOpenLightbox}
           />
-
-          {product.includes.length > 0 && (
-            <Tile variant="white" radius="lg" padding="md">
-              <span className="type-label text-ink-2">What is inside</span>
-              <ul className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {product.includes.map((item) => (
-                  <li key={item} className="flex items-start gap-2.5 text-sm text-ink">
-                    <span className="w-5 h-5 rounded-full bg-stone inline-flex items-center justify-center shrink-0 mt-0.5">
-                      <Check size={13} strokeWidth={2.25} aria-hidden="true" />
-                    </span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </Tile>
-          )}
         </div>
 
-        {/* Purchase Module */}
-        <div className="lg:col-span-5 flex flex-col gap-4 lg:sticky lg:top-24">
-          <Tile variant="white" radius="xl" padding="lg" className="flex flex-col gap-5">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2">
-                <TagPill>{product.sku}</TagPill>
-                {isPreviewData && <TagPill tone="warning">Preview data</TagPill>}
-              </div>
-              <IconButton
-                label={saved ? `Remove ${product.name} from saved` : `Save ${product.name}`}
-                icon={
-                  <Heart
-                    size={18}
-                    strokeWidth={1.75}
-                    className={saved ? 'fill-brand text-brand' : ''}
-                  />
-                }
-                onClick={() => toggleSaved(product.id)}
-              />
-            </div>
-
-            <div>
-              <h1 className="type-h2 font-semibold text-ink">{product.name}</h1>
-              {product.tagline && (
-                <p className="type-body text-ink-2 mt-2">{product.tagline}</p>
-              )}
-              <div className="mt-3">
-                <RatingStars rating={ratingStats?.avg_rating} count={ratingStats?.review_count} pill />
-              </div>
-            </div>
-
-            {fullDescription && (
-              <p className="text-[15px] text-ink-2 leading-relaxed prose-measure">
-                {fullDescription}
-              </p>
-            )}
-
-            {/* Wink-inspired dark price bar */}
-            <div className="rounded-[22px] bg-ink text-ink-on-dark p-4 flex items-center justify-between gap-4">
-              <div>
-                <span className="block text-xs text-ink-on-dark-muted">
-                  1 licence · lifetime access
-                </span>
-                <PriceTag cents={product.price_cents} size="lg" inverted />
-              </div>
-              {owned ? (
-                <Button
-                  variant="primary"
-                  inverted
-                  to="/account?tab=library"
-                  icon={<FolderCheck size={17} strokeWidth={1.75} aria-hidden="true" />}
-                >
-                  In your library
-                </Button>
-              ) : (
-                <Button
-                  variant="primary"
-                  inverted
-                  disabled={isPreviewData}
-                  onClick={handleAdd}
-                >
-                  {isPreviewData ? 'Preview only' : inCart ? 'In cart' : 'Add to cart'}
-                </Button>
-              )}
-            </div>
-
-            {isPreviewData && (
-              <p className="text-xs text-ink-2">
-                Showing preview catalogue data. Checkout opens once live products are published in
-                Supabase.
-              </p>
-            )}
-
-            <div className="pt-4 border-t border-line grid grid-cols-3 gap-2 text-xs text-ink-2">
-              <div className="flex items-center gap-1.5">
-                <Download size={15} strokeWidth={1.75} className="text-ink shrink-0" aria-hidden="true" />
-                <span>Instant download</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <InfinityIcon size={15} strokeWidth={1.75} className="text-ink shrink-0" aria-hidden="true" />
-                <span>Yours for life</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <ShieldCheck size={15} strokeWidth={1.75} className="text-ink shrink-0" aria-hidden="true" />
-                <span>Secure checkout</span>
-              </div>
-            </div>
-          </Tile>
-
-          {product.first_hour.length > 0 && (
-            <Tile variant="stone" radius="lg" padding="md">
-              <span className="type-label text-ink-2">Your first hour</span>
-              <ol className="mt-3 flex flex-col gap-2.5 text-sm text-ink">
-                {product.first_hour.map((step, i) => (
-                  <li key={step} className="flex items-start gap-2.5">
-                    <span className="font-mono text-xs text-ink-2 mt-0.5">0{i + 1}</span>
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ol>
-            </Tile>
-          )}
+        {/* RIGHT — 5 COLUMNS (Sticky below floating desktop header) */}
+        <div className="lg:col-span-5 lg:sticky lg:top-24">
+          <ProductPurchaseCard
+            product={product}
+            collection={collection}
+            ratingStats={ratingStats}
+            isPreviewData={isPreviewData}
+            owned={owned}
+            inCart={inCart}
+            saved={saved}
+            justAdded={justAdded}
+            isDesktop={isDesktop}
+            purchaseAnchorRef={purchaseAnchorRef}
+            onAddToCart={handleAddToCart}
+            onBuyNow={handleBuyNow}
+            onGoToCheckout={handleGoToCheckout}
+            onOpenCart={() => setCartOpen(true)}
+            onToggleSave={handleToggleSave}
+          />
         </div>
       </div>
 
-      {related.length > 0 && (
-        <section className="flex flex-col gap-5 pt-6 border-t border-line">
-          <h2 className="type-h3 font-semibold text-ink">Pairs well with</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {related.map((rel) => (
-              <ProductCard
-                key={rel.id}
-                product={rel}
-                collection={collection}
-                isPreviewData={isPreviewData}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-      {/* Mobile Sticky Buy Bar (replaces MobileBottomBar on /products/:slug) */}
-      <div
-        role="region"
-        aria-label="Purchase actions"
-        className="lg:hidden fixed inset-x-0 bottom-0 z-[var(--z-header)] px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] pt-1 pointer-events-none"
-      >
-        <div className="pointer-events-auto mx-auto max-w-[520px] rounded-full bg-ink text-ink-on-dark shadow-[var(--shadow-float)] pl-5 pr-2 py-2 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <span className="block text-[11px] font-mono uppercase tracking-[0.06em] text-ink-on-dark-muted leading-none">
-              1 licence · lifetime
-            </span>
-            <PriceTag cents={product.price_cents} size="md" inverted className="mt-0.5 block" />
-          </div>
-          {owned ? (
-            <Button
-              variant="primary"
-              inverted
-              size="md"
-              to="/account?tab=library"
-              icon={<FolderCheck size={16} strokeWidth={1.75} aria-hidden="true" />}
-            >
-              In your library
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              inverted
-              size="md"
-              disabled={isPreviewData}
-              onClick={handleAdd}
-            >
-              {isPreviewData ? 'Preview only' : inCart ? 'In cart' : 'Add to cart'}
-            </Button>
-          )}
-        </div>
-      </div>
+      {/* Distinct Editorial Sections Below Purchase Area */}
+      <ProductEditorialSections
+        product={product}
+        collection={collection}
+        related={related}
+        allCollections={collections}
+        ratingStats={ratingStats}
+        reviews={reviews}
+        userReview={userReview}
+        isPreviewData={isPreviewData}
+        owned={owned}
+        inCart={inCart}
+        onBuyNow={handleBuyNow}
+        onGoToCheckout={handleGoToCheckout}
+      />
+
+      {/* Fullscreen Lightbox for available product_media images */}
+      <ProductLightbox
+        open={lightboxOpen}
+        images={lightboxImages}
+        activeIndex={lightboxIndex}
+        accent={collection?.accent}
+        productName={product.name}
+        onIndexChange={setLightboxIndex}
+        onClose={() => setLightboxOpen(false)}
+      />
+
+      {/* Sticky Mobile Purchase Bar (slides up once primary buttons leave viewport) */}
+      <MobileStickyBuyBar
+        visible={stickyBarVisible && !lightboxOpen}
+        product={product}
+        isPreviewData={isPreviewData}
+        owned={owned}
+        inCart={inCart}
+        justAdded={justAdded}
+        onAddToCart={handleAddToCart}
+        onBuyNow={handleBuyNow}
+        onGoToCheckout={handleGoToCheckout}
+        onOpenCart={() => setCartOpen(true)}
+      />
     </div>
   );
 }

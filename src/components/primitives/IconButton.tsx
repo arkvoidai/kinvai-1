@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 
 export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label'> {
   label: string;
+  /** Optional concise desktop tooltip text; defaults to label */
+  tooltip?: string;
   icon: ReactNode;
   variant?: 'surface' | 'ink' | 'ghost' | 'stone';
   size?: 'sm' | 'md' | 'lg';
@@ -30,6 +32,7 @@ const SIZE_MAP = {
  */
 export function IconButton({
   label,
+  tooltip,
   icon,
   variant = 'surface',
   size = 'md',
@@ -94,7 +97,7 @@ export function IconButton({
         role="tooltip"
         className={`hidden md:block invisible pointer-events-none absolute ${tooltipPos} z-[var(--z-tooltip)] px-2.5 py-1 rounded-full bg-ink text-page text-xs font-medium whitespace-nowrap opacity-0 translate-y-0.5 transition-[opacity,transform,visibility] duration-150 group-hover/tooltip:visible group-hover/tooltip:opacity-100 group-hover/tooltip:translate-y-0 group-focus-within/tooltip:visible group-focus-within/tooltip:opacity-100 group-focus-within/tooltip:translate-y-0`}
       >
-        {label}
+        {tooltip ?? label}
       </span>
     </span>
   );

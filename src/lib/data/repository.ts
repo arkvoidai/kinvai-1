@@ -22,6 +22,7 @@ import {
   type Review,
   type WishlistItem,
 } from './types';
+import { mapReviewSubmitError, rankRelatedProducts } from '../product/productHelpers';
 
 function allowSeedFallback(): boolean {
   return getPublicConfig().flags.allowSeedFallback;
@@ -415,7 +416,11 @@ export async function getFeatured(limit = 6): Promise<DataEnvelope<Product[]>> {
   return { data: [], source: 'empty', isPreviewData: false };
 }
 
-export async function getRelated(productId: string, limit = 4): Promise<DataEnvelope<Product[]>> {
+export async function getRelated(
+  productId: string,
+  limit = 4,
+  currentProduct?: Pick<Product, 'id' | 'collection_id' | 'tags'> | null
+): Promise<DataEnvelope<Product[]>> {
   const client = getSupabaseBrowserClient();
   if (client) {
     try {
@@ -444,21 +449,36 @@ export async function getRelated(productId: string, limit = 4): Promise<DataEnve
           }
         }
       }
+
+      // Fallback: same collection, ranked by shared tags (never fabricate)
+      if (currentProduct?.collection_id) {
+        const { data: sameColRows, error: sameColErr } = await client
+          .from('products')
+          .select('*')
+          .eq('status', 'published')
+          .eq('collection_id', currentProduct.collection_id)
+          .neq('id', productId)
+          .limit(24);
+
+        if (!sameColErr && sameColRows && sameColRows.length > 0) {
+          const parsed = parseArray(ProductSchema, sameColRows);
+          const ranked = rankRelatedProducts(currentProduct, parsed, limit);
+          return { data: ranked, source: 'supabase', isPreviewData: false };
+        }
+      }
     } catch {
       // Fallback below
     }
   }
 
   if (allowSeedFallback()) {
-    const current = SEED_PRODUCTS.find((p) => p.id === productId);
-    const sameCollection = SEED_PRODUCTS.filter(
-      (p) => p.id !== productId && p.collection_id === current?.collection_id
-    );
-    const others = SEED_PRODUCTS.filter(
-      (p) => p.id !== productId && p.collection_id !== current?.collection_id
-    );
+    const current = currentProduct ?? SEED_PRODUCTS.find((p) => p.id === productId);
+    if (!current) {
+      return { data: [], source: 'seed', isPreviewData: true };
+    }
+    const ranked = rankRelatedProducts(current, SEED_PRODUCTS, limit);
     return {
-      data: [...sameCollection, ...others].slice(0, limit),
+      data: ranked,
       source: 'seed',
       isPreviewData: true,
     };
@@ -466,22 +486,41 @@ export async function getRelated(productId: string, limit = 4): Promise<DataEnve
   return { data: [], source: 'empty', isPreviewData: false };
 }
 
-export async function getProductBySlug(slug: string): Promise<DataEnvelope<ProductDetail | null>> {
+export async function getProductBySlug(
+  slug: string,
+  options?: { userId?: string | null; isAdmin?: boolean }
+): Promise<DataEnvelope<ProductDetail | null>> {
   const client = getSupabaseBrowserClient();
+  let queryError: string | undefined;
+
   if (client) {
     try {
+      const allowedStatuses = options?.userId ? ['published', 'archived'] : ['published'];
       const { data: prodRow, error } = await client
         .from('products')
         .select('*')
         .eq('slug', slug)
-        .eq('status', 'published')
+        .in('status', allowedStatuses)
         .maybeSingle();
 
-      if (!error && prodRow) {
+      if (error) {
+        queryError = error.message || 'Could not load product.';
+      } else if (prodRow) {
         const parsedProduct = ProductSchema.safeParse(prodRow);
         if (parsedProduct.success) {
           const product = parsedProduct.data;
-          const [colRes, mediaRes, relatedRes, stats] = await Promise.all([
+
+          // Archived products are visible ONLY to signed-in owners (or admins)
+          if (product.status === 'archived') {
+            const hasAccess =
+              Boolean(options?.isAdmin) ||
+              (options?.userId ? await isOwned(options.userId, product.id) : false);
+            if (!hasAccess) {
+              return { data: null, source: 'supabase', isPreviewData: false };
+            }
+          }
+
+          const [colRes, mediaRes, relatedRes, stats, reviews, userReview] = await Promise.all([
             product.collection_id
               ? client.from('collections').select('*').eq('id', product.collection_id).maybeSingle()
               : Promise.resolve({ data: null, error: null }),
@@ -490,8 +529,10 @@ export async function getProductBySlug(slug: string): Promise<DataEnvelope<Produ
               .select('*')
               .eq('product_id', product.id)
               .order('sort_order', { ascending: true }),
-            getRelated(product.id, 4),
+            getRelated(product.id, 4, product),
             getRatingStats(product.id),
+            getApprovedReviews(product.id),
+            options?.userId ? getUserProductReview(options.userId, product.id) : Promise.resolve(null),
           ]);
 
           const collectionParsed = colRes.data ? CollectionSchema.safeParse(colRes.data) : null;
@@ -506,14 +547,19 @@ export async function getProductBySlug(slug: string): Promise<DataEnvelope<Produ
               media,
               related: relatedRes.data,
               ratingStats: stats,
+              reviews,
+              userReview,
             },
             source: 'supabase',
             isPreviewData: false,
           };
         }
+      } else if (!allowSeedFallback()) {
+        // Genuine 404 (query succeeded with no matching row)
+        return { data: null, source: 'supabase', isPreviewData: false };
       }
-    } catch {
-      // Fallback below
+    } catch (err) {
+      queryError = err instanceof Error ? err.message : 'Could not load product.';
     }
   }
 
@@ -523,9 +569,7 @@ export async function getProductBySlug(slug: string): Promise<DataEnvelope<Produ
       return { data: null, source: 'seed', isPreviewData: true };
     }
     const collection = SEED_COLLECTIONS.find((c) => c.id === product.collection_id) ?? null;
-    const related = SEED_PRODUCTS.filter(
-      (p) => p.id !== product.id && p.collection_id === product.collection_id
-    ).slice(0, 4);
+    const related = rankRelatedProducts(product, SEED_PRODUCTS, 4);
 
     return {
       data: {
@@ -534,13 +578,15 @@ export async function getProductBySlug(slug: string): Promise<DataEnvelope<Produ
         media: [],
         related,
         ratingStats: null,
+        reviews: [],
+        userReview: null,
       },
       source: 'seed',
       isPreviewData: true,
     };
   }
 
-  return { data: null, source: 'empty', isPreviewData: false };
+  return { data: null, source: 'empty', isPreviewData: false, error: queryError };
 }
 
 export async function searchProducts(
@@ -632,14 +678,113 @@ export async function getApprovedReviews(productId: string): Promise<Review[]> {
   try {
     const { data, error } = await client
       .from('reviews')
-      .select('user_id, product_id, rating, title, body, status')
+      .select('id, user_id, product_id, rating, title, body, status, created_at')
       .eq('product_id', productId)
-      .eq('status', 'approved');
+      .eq('status', 'approved')
+      .order('created_at', { ascending: false });
 
     if (error || !data) return [];
     return parseArray(ReviewSchema, data);
   } catch {
     return [];
+  }
+}
+
+export async function getUserProductReview(
+  userId: string,
+  productId: string
+): Promise<Review | null> {
+  const client = getSupabaseBrowserClient();
+  if (!client || !userId || !productId) return null;
+  try {
+    const { data, error } = await client
+      .from('reviews')
+      .select('id, user_id, product_id, rating, title, body, status, created_at')
+      .eq('user_id', userId)
+      .eq('product_id', productId)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    const parsed = ReviewSchema.safeParse(data);
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+export interface SubmitReviewResult {
+  review: Review | null;
+  error?: string;
+}
+
+export async function submitProductReview(input: {
+  userId: string;
+  productId: string;
+  rating: number;
+  title: string;
+  body: string;
+}): Promise<SubmitReviewResult> {
+  const client = getSupabaseBrowserClient();
+  if (!client) {
+    return {
+      review: null,
+      error: "That didn't work. Try again, or write to heyarkvoid@gmail.com.",
+    };
+  }
+
+  const rating = Math.max(1, Math.min(5, Math.round(input.rating)));
+  const cleanTitle = input.title.trim();
+  const cleanBody = input.body.trim();
+
+  if (!cleanTitle || !cleanBody) {
+    return {
+      review: null,
+      error: 'Add both a short title and your review before submitting.',
+    };
+  }
+
+  try {
+    const { data, error } = await client
+      .from('reviews')
+      .insert({
+        user_id: input.userId,
+        product_id: input.productId,
+        rating,
+        title: cleanTitle,
+        body: cleanBody,
+        status: 'pending',
+      })
+      .select('id, user_id, product_id, rating, title, body, status, created_at')
+      .maybeSingle();
+
+    if (error) {
+      return {
+        review: null,
+        error: mapReviewSubmitError({ code: error.code, message: error.message }),
+      };
+    }
+
+    const parsed = data ? ReviewSchema.safeParse(data) : null;
+    return {
+      review: parsed?.success
+        ? parsed.data
+        : {
+            user_id: input.userId,
+            product_id: input.productId,
+            rating,
+            title: cleanTitle,
+            body: cleanBody,
+            status: 'pending',
+            created_at: new Date().toISOString(),
+          },
+    };
+  } catch (err) {
+    return {
+      review: null,
+      error: mapReviewSubmitError(
+        err instanceof Error ? { message: err.message } : undefined
+      ),
+    };
   }
 }
 

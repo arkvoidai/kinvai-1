@@ -130,3 +130,24 @@ This file records every engineering decision and assumption made across Kinvai b
    - `/collections/:slug` renders a collection-tinted editorial header with a `"Start with"` `feature` card sourced strictly from the collection's first featured database product, collection-scoped URL filters, shared grid, and circular Previous/Next collection tiles.
    - `/search?q=` queries `search_products` RPC with `AbortController`, preserves `q` in the URL, highlights matched tokens safely in React inside product cards, renders `compact` cards on phones and `standard` cards on desktop, and provides clickable suggestion chips on empty results.
    - `/saved` shows the gentle guest banner (`"Sign in to keep these on every device."`) above local saves when signed out and uses optimistic heart updates via `useCart()`.
+
+## Prompt 6: Product Page
+
+1. **Wink Desktop Bento & Mobile Shop App Phone Architecture (`/products/:slug`)**
+   - Desktop (`>=1024px`) renders a breadcrumb pill row (`Home / Collection / Product`) above a 12-column bento: Left 7 columns feature a `36px`-radius collection-tinted hero tile (`ProductCover` at `lg` size, top-left collection `<TagPill>`, top-right floating Save & Share round buttons) paired with 3 secondary gallery tiles below (`product_media` gallery images when present, or real-data-only File-tree, Formats, and Made-for peek tiles). Right 5 columns hold a sticky purchase card (`lg:sticky lg:top-24`) with title, tagline, conditional `RatingStars` (`review_count > 0` only), monospaced USD price, format chips, requirements line, Add to cart + Heart row, a Wink-inspired dark ink price bar (price left, white `Buy now` / `Go to checkout` pill right), and three round-badge assurance rows (`Instant download`, `Yours for life`, `Secure checkout`).
+   - Mobile (`<1024px`) translates the Mobile Shop App reference into a dedicated touch-first experience: full-width tinted swipeable cover stage with floating round Back, Save, and Share buttons plus centered gallery dots, followed by a crisp white product block with expandable description accordion, and a spring-animated `<MobileStickyBuyBar />` that slides up above the safe area once the primary purchase controls scroll out of view (replacing `<MobileBottomBar />` cleanly).
+
+2. **Purchase States, 600ms Drawn-Check Add to Cart & Exclusive Buy Now**
+   - `resolvePurchaseState` explicitly governs `not-owned`, `in-cart` (`In cart` + `Go to checkout`), `owned` (`Download from your library` -> `/account`), and `preview` (seed mode: disabled purchase actions labelled `Preview data`).
+   - Clicking `Add to cart` morphs the button to `Added` with an animated SVG drawn-check stroke over `600ms` before settling; on desktop (`>=1024px`) only, `CartSheet` opens after the morph completes.
+   - `CartProvider.buyNow(product, isPreviewData)` replaces the cart exclusively with `[product.id]` via `cartStore.replace([product.id])` and navigates directly to `/checkout`.
+
+3. **Archived Owner Access, Real-Data Related Fallback & Verified Owner Reviews**
+   - `getProductBySlug(slug, { userId, isAdmin })` allows signed-in owners (verified via `entitlements` with `revoked_at IS NULL`) or admins to view `archived` products they own, while returning 404 to everyone else and distinguishing live query errors (Retry tile) from genuine 404s.
+   - `getRelated` queries `product_relations` first, then falls back exclusively to published products in the same collection ranked by shared tag overlap (`rankRelatedProducts`), never fabricating items.
+   - `ProductReviewsSection` displays `product_rating_stats` only when `review_count > 0`, lists approved reviews or the calm empty state (`"Reviews appear here after buyers have used this product."`), and provides a `Write a review` form strictly for signed-in owners, handling Supabase RLS/duplicate errors gracefully (`mapReviewSubmitError`) and showing `Awaiting approval` for newly submitted or pending reviews.
+
+4. **Accessible Lightbox, Shared-Element View Transitions & Canonical SEO**
+   - `ProductLightbox` opens any available `product_media` image with a keyboard focus trap, `Escape` to close, `ArrowLeft`/`ArrowRight` navigation, touch swipe support, and a `220ms` crossfade.
+   - Shared-element transitions attach a deterministic `viewTransitionName` (`kv-cover-<slug>`) strictly to the active visible product cover on `ProductCard` and `ProductDetailPage`, with CSS reduced-motion disable and `PageTransition` fade fallback when unsupported.
+   - `usePageMeta` updates `document.title` and upserts a single canonical `<link rel="canonical">` on every route change (removing duplicates/stale links and omitting canonical on `noindex` routes such as 404 or archived owner views).

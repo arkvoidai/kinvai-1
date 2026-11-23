@@ -4,6 +4,7 @@ import { Check, FolderCheck, Heart, Plus } from 'lucide-react';
 import { useCart } from '../../lib/cart/CartProvider';
 import { accentToTileVariant } from '../../lib/data/format';
 import type { Collection, Product } from '../../lib/data/types';
+import { getProductCoverTransitionName } from '../../lib/product/productHelpers';
 import { highlightMatchSegments } from '../../lib/search/searchHelpers';
 import { IconButton, PriceTag, ProductCover, Skeleton, TagPill, useToast } from '../primitives';
 
@@ -16,6 +17,8 @@ export interface ProductCardProps {
   variant?: ProductCardVariant;
   highlightQuery?: string;
   priority?: boolean;
+  /** Enables CSS view-transition-name on the product cover (disable if the same product renders twice on one page) */
+  enableViewTransition?: boolean;
   className?: string;
 }
 
@@ -65,6 +68,7 @@ export function ProductCard({
   variant = 'standard',
   highlightQuery,
   priority = false,
+  enableViewTransition = true,
   className = '',
 }: ProductCardProps) {
   const {
@@ -88,6 +92,9 @@ export function ProductCard({
   const extraFormatCount = Math.max(0, product.file_formats.length - 3);
   const featureIncludes = product.includes.slice(0, 3);
   const productHref = `/products/${product.slug}`;
+  const coverTransitionStyle = enableViewTransition
+    ? { viewTransitionName: getProductCoverTransitionName(product.slug) }
+    : undefined;
 
   const handleSave = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
@@ -218,7 +225,10 @@ export function ProductCard({
         <div
           className={`w-[78px] sm:w-[88px] shrink-0 rounded-[16px] border p-1.5 transition-colors duration-200 ${tileClasses}`}
         >
-          <div className="transition-transform duration-250 ease-out motion-reduce:transition-none [@media(hover:hover)_and_(pointer:fine)]:group-hover/card:-translate-y-0.5">
+          <div
+            className="transition-transform duration-250 ease-out motion-reduce:transition-none [@media(hover:hover)_and_(pointer:fine)]:group-hover/card:-translate-y-0.5"
+            style={coverTransitionStyle}
+          >
             <ProductCover
               product={product}
               collection={collection}
@@ -298,7 +308,10 @@ export function ProductCard({
           <div
             className={`md:col-span-5 relative rounded-[24px] border p-3 transition-colors duration-200 ${tileClasses}`}
           >
-            <div className="transition-transform duration-250 ease-out motion-reduce:transition-none [@media(hover:hover)_and_(pointer:fine)]:group-hover/card:-translate-y-1">
+            <div
+              className="transition-transform duration-250 ease-out motion-reduce:transition-none [@media(hover:hover)_and_(pointer:fine)]:group-hover/card:-translate-y-1"
+              style={coverTransitionStyle}
+            >
               <ProductCover
                 product={product}
                 collection={collection}
@@ -410,7 +423,10 @@ export function ProductCard({
         >
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center aspect-[16/10] sm:aspect-auto sm:min-h-[260px]">
             <div className="sm:col-span-6 h-full flex items-center justify-center">
-              <div className="w-full max-w-[230px] transition-transform duration-250 ease-out motion-reduce:transition-none [@media(hover:hover)_and_(pointer:fine)]:group-hover/card:-translate-y-1">
+              <div
+                className="w-full max-w-[230px] transition-transform duration-250 ease-out motion-reduce:transition-none [@media(hover:hover)_and_(pointer:fine)]:group-hover/card:-translate-y-1"
+                style={coverTransitionStyle}
+              >
                 <ProductCover
                   product={product}
                   collection={collection}
@@ -543,7 +559,10 @@ export function ProductCard({
         <div
           className={`relative rounded-[24px] sm:rounded-[28px] border p-3 transition-colors duration-200 ${tileClasses}`}
         >
-          <div className="transition-transform duration-250 ease-out motion-reduce:transition-none [@media(hover:hover)_and_(pointer:fine)]:group-hover/card:-translate-y-1">
+          <div
+            className="transition-transform duration-250 ease-out motion-reduce:transition-none [@media(hover:hover)_and_(pointer:fine)]:group-hover/card:-translate-y-1"
+            style={coverTransitionStyle}
+          >
             <ProductCover
               product={product}
               collection={collection}

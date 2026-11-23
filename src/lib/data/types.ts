@@ -131,6 +131,8 @@ export interface ProductDetail {
   media: ProductMedia[];
   related: Product[];
   ratingStats: RatingStats | null;
+  reviews?: Review[];
+  userReview?: Review | null;
 }
 
 export type DataSource = 'supabase' | 'seed' | 'empty';
