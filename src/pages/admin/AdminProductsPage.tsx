@@ -519,6 +519,7 @@ function FilesManager({ product, files, loading, onFilesChange }: {
   const client = getSupabaseBrowserClient();
   const { toast } = useToast();
   const uploadRef = useRef<{ abort: (shouldTerminate?: boolean) => Promise<void>; start: () => void } | null>(null);
+  const pendingUploadRef = useRef<{ id: string; objectPath: string; checksum: string } | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [version, setVersion] = useState(product.version || '1.0');
   const [progress, setProgress] = useState(0);
@@ -532,6 +533,8 @@ function FilesManager({ product, files, loading, onFilesChange }: {
     if (!file) return;
     const schema = zFileSchema.safeParse({ name: file.name, size: file.size, type: file.type });
     if (!schema.success) { toast({ title: 'File not accepted', description: schema.error.issues[0]?.message, tone: 'error' }); return; }
+    if (uploadRef.current) void uploadRef.current.abort(true);
+    pendingUploadRef.current = null;
     setSelectedFile(file);
     setProgress(0);
     setUploadError('');
@@ -539,6 +542,8 @@ function FilesManager({ product, files, loading, onFilesChange }: {
 
   const startUpload = async () => {
     if (!client || !selectedFile) return;
+    const versionResult = z.object({ version: z.string().trim().min(1).max(40) }).safeParse({ version });
+    if (!versionResult.success) { setUploadError('Enter a version between 1 and 40 characters.'); setUploadState('error'); return; }
     const { data: sessionData, error: sessionError } = await client.auth.getSession();
     if (sessionError || !sessionData.session?.access_token) { setUploadError('The sign-in session has expired. Sign in again.'); setUploadState('error'); return; }
     const cfg = getPublicConfig();
@@ -546,10 +551,14 @@ function FilesManager({ product, files, loading, onFilesChange }: {
     const endpoint = projectMatch
       ? 'https://' + projectMatch[1] + '.storage.supabase.co/storage/v1/upload/resumable'
       : cfg.supabaseUrl.replace(/\/+$/, '') + '/storage/v1/upload/resumable';
-    const fileId = crypto.randomUUID();
-    const objectPath = 'products/' + product.id + '/' + fileId + '/' + selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '-');
-    const checksumBuffer = await crypto.subtle.digest('SHA-256', await selectedFile.arrayBuffer());
-    const checksum = Array.from(new Uint8Array(checksumBuffer)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+    if (!pendingUploadRef.current) {
+      const checksumBuffer = await crypto.subtle.digest('SHA-256', await selectedFile.arrayBuffer());
+      const checksum = Array.from(new Uint8Array(checksumBuffer)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+      const id = crypto.randomUUID();
+      const objectPath = 'products/' + product.id + '/' + id + '/' + selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '-');
+      pendingUploadRef.current = { id, objectPath, checksum };
+    }
+    const { id: fileId, objectPath, checksum } = pendingUploadRef.current;
     const { Upload } = await import('tus-js-client');
     const upload = new Upload(selectedFile, {
       endpoint,
@@ -582,16 +591,17 @@ function FilesManager({ product, files, loading, onFilesChange }: {
             file_name: selectedFile.name,
             mime_type: selectedFile.type || null,
             size_bytes: selectedFile.size,
-            version: version.trim() || '1.0',
+            version: versionResult.data.version,
             checksum_sha256: checksum,
             is_active: true,
           }).select('*').single();
           if (error || !data) throw error || new Error('File metadata could not be saved.');
-          onFilesChange(isReplacing ? [data as ProductFile, ...files.map((item) => ({ ...item, is_active: false }))] : [data as ProductFile, ...files]);
           if (isReplacing) {
             const { error: deactivateError } = await client.from('product_files').update({ is_active: false }).eq('product_id', product.id).neq('id', fileId);
-            if (deactivateError) toast({ title: 'New version uploaded; previous files remain active', description: deactivateError.message, tone: 'error' });
+            if (deactivateError) throw deactivateError;
           }
+          onFilesChange(isReplacing ? [data as ProductFile, ...files.map((item) => ({ ...item, is_active: false }))] : [data as ProductFile, ...files]);
+          pendingUploadRef.current = null;
           toast({ title: 'Product file uploaded', tone: 'success' });
           setUploadState('idle');
           setSelectedFile(null);
@@ -663,7 +673,7 @@ function FilesManager({ product, files, loading, onFilesChange }: {
   );
 }
 
-const zFileSchema = z.object({ name: z.string().trim().min(1).max(255), size: z.number().int().positive(), type: z.string().max(255) });
+const zFileSchema = z.object({ name: z.string().trim().min(1).max(255), size: z.number().int().positive().max(500 * 1024 * 1024, 'Files must be 500 MiB or smaller.'), type: z.string().max(255) });
 
 export function AdminProductsPage() {
   const client = getSupabaseBrowserClient();
