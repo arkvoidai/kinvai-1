@@ -16,7 +16,6 @@ import {
   type PaginatedProductsResult,
   type Product,
   type ProductDetail,
-  type ProductMedia,
   type ProductQueryParams,
   type RatingStats,
   type Review,
@@ -441,10 +440,11 @@ export async function getProductBySlug(
           : [];
         if (!relationRows.success) logRepositoryValidation('product relation rows', relationRows.error);
 
+        const embeddedRelatedResult: DataEnvelope<Product[]> | null = embeddedRelated.length > 0
+          ? { data: embeddedRelated.slice(0, 4), source: 'supabase', isPreviewData: false }
+          : null;
         const [related, stats, reviews, userReview] = await Promise.all([
-          embeddedRelated.length
-            ? Promise.resolve({ data: embeddedRelated.slice(0, 4), source: 'supabase' as const, isPreviewData: false })
-            : getRelated(product.id, 4, product),
+          embeddedRelatedResult ?? getRelated(product.id, 4, product),
           getRatingStats(product.id),
           getApprovedReviews(product.id),
           options?.userId ? getUserProductReview(options.userId, product.id) : Promise.resolve(null),
