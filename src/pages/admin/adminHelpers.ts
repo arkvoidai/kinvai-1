@@ -323,25 +323,3 @@ export async function uploadCollectionImage(
   }
 }
 
-export async function uploadCollectionImage(
-  client: SupabaseClient,
-  collectionId: string,
-  image: File
-): Promise<string> {
-  const validation = ImageUploadSchema.safeParse(image);
-  if (!validation.success) throw new Error(validation.error.issues[0]?.message || 'Choose a supported image.');
-  const processed = await processImage(image);
-  const mediaId = crypto.randomUUID();
-  const basePath = 'collections/' + collectionId + '/' + mediaId;
-  const storage = client.storage.from('product-media');
-  for (const item of processed.variants) {
-    const path = getProductMediaVariantPath(basePath, item.variant);
-    const { error } = await storage.upload(path, item.blob, {
-      contentType: 'image/webp',
-      cacheControl: '31536000',
-      upsert: false,
-    });
-    if (error) throw error;
-  }
-  return basePath;
-}

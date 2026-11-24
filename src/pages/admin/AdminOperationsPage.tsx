@@ -14,7 +14,7 @@ const money = (cents: number) => formatUsd(cents);
 
 type OrderRow = {
   id: string; order_number: string; user_id: string; status: string; provider: string | null;
-  currency: string; total_cents: number; provider_order_id: string | null; provider_payment_id: string | null; created_at: string;
+  currency: string; total_cents: number; refunded_cents: number; provider_order_id: string | null; provider_payment_id: string | null; created_at: string;
 };
 type OrderItemRow = { id: string; order_id: string; product_name: string; sku: string; unit_price_cents: number };
 type PaymentEventRow = { id: string; provider: string; event_id: string; event_type: string; payload: unknown; received_at: string };
@@ -45,7 +45,7 @@ export function AdminOverviewPage() {
     weekStart.setHours(0, 0, 0, 0);
     const [p, o, r, f] = await Promise.all([
       client.from('products').select('*'),
-      client.from('orders').select('id,order_number,user_id,status,provider,currency,total_cents,provider_order_id,provider_payment_id,created_at').order('created_at', { ascending: false }),
+      client.from('orders').select('id,order_number,user_id,status,provider,currency,total_cents,refunded_cents,provider_order_id,provider_payment_id,created_at').order('created_at', { ascending: false }),
       client.from('reviews').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
       client.from('product_files').select('product_id').eq('is_active', true),
     ]);
@@ -55,7 +55,10 @@ export function AdminOverviewPage() {
     const orderRows = (o.data || []) as OrderRow[];
     setProducts(productRows);
     setOrders(orderRows);
-    setRevenue(orderRows.filter((item) => item.status === 'paid').reduce((sum, item) => sum + item.total_cents, 0));
+    setRevenue(orderRows.reduce((sum, item) => {
+      if (!['paid', 'partially_refunded', 'refunded'].includes(item.status)) return sum;
+      return sum + Math.max(0, item.total_cents - (item.refunded_cents || 0));
+    }, 0));
     setPendingReviews(r.count || 0);
     setActiveFiles((f.data || []) as Array<{product_id:string}>);
     setLoading(false);
@@ -78,7 +81,7 @@ export function AdminOverviewPage() {
   return <div className="space-y-5">
     <div className="flex items-center justify-between gap-3"><div><h2 className="text-xl font-semibold">Your business, at a glance</h2><p className="text-sm text-ink-2 mt-1">Live figures from the catalogue and orders database.</p></div><Button size="sm" variant="secondary" onClick={() => void load()} icon={<RefreshCw size={16}/>}>Refresh</Button></div>
     <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
-      <StatTile label="Revenue · paid orders" value={money(revenue)} note="USD, all-time"/>
+      <StatTile label="Net paid revenue" value={money(revenue)} note="After recorded refunds · USD"/>
       <StatTile label="Orders this week" value={weekOrders.length} note="Since Monday, local time"/>
       <StatTile label="Products" value={products.length} note={published.length + ' published · ' + drafts.length + ' drafts'}/>
       <StatTile label="Pending reviews" value={pendingReviews}/>
