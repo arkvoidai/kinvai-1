@@ -1,0 +1,16 @@
+{
+  "name": "Kinvai",
+  "short_name": "Kinvai",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F4F2EE",
+  "theme_color": "#F4F2EE",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
