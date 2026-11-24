@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Download, ExternalLink, Inbox, Mail, RefreshCw, Save, ShieldCheck } from 'lucide-react';
 import { Button, Checkbox, Input, Skeleton, TagPill, Tile, useToast } from '../../components/primitives';
 import { getPublicConfig } from '../../lib/config';
@@ -267,30 +267,43 @@ export function AdminInboxPage() {
   const {toast}=useToast();
   const [messages,setMessages]=useState<InboxMessage[]>([]);
   const [subscribers,setSubscribers]=useState<SubscriberRow[]>([]);
+  const [handledSubscribers,setHandledSubscribers]=useState<Set<string>>(new Set());
   const [tab,setTab]=useState<'messages'|'subscribers'>('messages');
   const [loading,setLoading]=useState(true);
   const load=useCallback(async()=>{
     if(!client){setLoading(false);return;}
-    const [m,s]=await Promise.all([
+    const [m,s,h]=await Promise.all([
       client.from('contact_messages').select('*').order('created_at',{ascending:false}).limit(500),
       client.from('newsletter_subscribers').select('*').order('created_at',{ascending:false}).limit(5000),
+      client.from('site_settings').select('value').eq('key','admin_handled_newsletter_ids').maybeSingle(),
     ]);
-    if(m.error||s.error)toast({title:'Inbox could not be loaded',description:(m.error||s.error)?.message,tone:'error'});
+    if(m.error||s.error||h.error)toast({title:'Inbox could not be fully loaded',description:(m.error||s.error||h.error)?.message,tone:'error'});
     setMessages((m.data||[]) as InboxMessage[]);
     setSubscribers((s.data||[]) as SubscriberRow[]);
+    const handled=(h.data?.value as {ids?:string[]}|null)?.ids || [];
+    setHandledSubscribers(new Set(handled));
     setLoading(false);
   },[client,toast]);
   useEffect(()=>{void load();},[load]);
   const exportCsv=(kind:'messages'|'subscribers')=>{
     const rows=kind==='messages'?messages:subscribers;
-    const headers=kind==='messages'?['name','email','subject','message','handled','created_at']:['email','source','created_at'];
+    const headers=kind==='messages'?['name','email','subject','message','handled','created_at']:['email','source','handled','created_at'];
     const escape=(value:unknown)=>'"'+String(value??'').replace(/"/g,'""')+'"';
-    const lines=[headers.join(','),...rows.map((row)=>headers.map((key)=>escape((row as unknown as Record<string,unknown>)[key])).join(','))];
+    const lines=[headers.join(','),...rows.map((row)=>headers.map((key)=>escape(key==='handled'&&kind==='subscribers'?handledSubscribers.has(row.id):(row as unknown as Record<string,unknown>)[key])).join(','))];
     const blob=new Blob([lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
     const url=URL.createObjectURL(blob);
     const anchor=document.createElement('a');
     anchor.href=url;anchor.download='kinvai-'+kind+'-'+new Date().toISOString().slice(0,10)+'.csv';
     document.body.appendChild(anchor);anchor.click();anchor.remove();URL.revokeObjectURL(url);
+  };
+  const toggleSubscriberHandled=async(subscriber:SubscriberRow)=>{
+    if(!client)return;
+    const before=new Set(handledSubscribers);
+    const next=new Set(before);
+    if(next.has(subscriber.id))next.delete(subscriber.id);else next.add(subscriber.id);
+    setHandledSubscribers(next);
+    const {error}=await client.from('site_settings').upsert({key:'admin_handled_newsletter_ids',value:{ids:[...next]},is_public:false});
+    if(error){setHandledSubscribers(before);toast({title:'Subscriber status was not saved',description:error.message,tone:'error'});}
   };
   const toggleHandled=async(message:InboxMessage)=>{
     if(!client)return;
@@ -299,7 +312,7 @@ export function AdminInboxPage() {
     if(error){setMessages((prev)=>prev.map((item)=>item.id===message.id?message:item));toast({title:'Message status was not saved',description:error.message,tone:'error'});}
   };
   return <div className="space-y-4"><div className="flex flex-wrap items-center gap-2"><button type="button" onClick={()=>setTab('messages')} className={'rounded-full px-4 min-h-[42px] text-sm '+(tab==='messages'?'bg-ink text-white':'bg-surface border border-line')}>Contact messages ({messages.length})</button><button type="button" onClick={()=>setTab('subscribers')} className={'rounded-full px-4 min-h-[42px] text-sm '+(tab==='subscribers'?'bg-ink text-white':'bg-surface border border-line')}>Newsletter ({subscribers.length})</button><Button size="sm" variant="secondary" onClick={()=>exportCsv(tab)} icon={<Download size={15}/>}>Export CSV</Button></div>
-    {loading?<Skeleton className="h-40" rounded="lg"/>:tab==='messages'?messages.length?messages.map((message)=><article key={message.id} className={cardClass}><div className="flex flex-wrap justify-between gap-2"><div><h3 className="font-semibold">{message.name}</h3><a href={'mailto:'+message.email} className="text-sm text-ink-2 underline underline-offset-4">{message.email}</a></div><Checkbox label="Handled" checked={message.handled} onChange={()=>void toggleHandled(message)}/></div><p className="font-medium text-sm mt-3">{message.subject||'Contact message'}</p><p className="text-sm text-ink-2 whitespace-pre-wrap mt-2">{message.message}</p><p className="text-xs text-ink-3 mt-3">{new Date(message.created_at).toLocaleString()}</p></article>):<Tile variant="white" padding="lg"><p className="text-sm text-ink-2">No contact messages yet.</p></Tile>:subscribers.length?<div className={cardClass+' divide-y divide-line'}>{subscribers.map((item)=><div key={item.id} className="py-3 flex items-center justify-between gap-3"><div className="min-w-0"><a href={'mailto:'+item.email} className="text-sm font-medium underline underline-offset-4 break-all">{item.email}</a><p className="text-xs text-ink-3 mt-1">{item.source||'Website'} · {new Date(item.created_at).toLocaleDateString()}</p></div><Mail size={17} className="text-ink-3 shrink-0"/></div>)}</div>:<Tile variant="white" padding="lg"><p className="text-sm text-ink-2">No newsletter subscribers yet.</p></Tile>}
+    {loading?<Skeleton className="h-40" rounded="lg"/>:tab==='messages'?messages.length?messages.map((message)=><article key={message.id} className={cardClass}><div className="flex flex-wrap justify-between gap-2"><div><h3 className="font-semibold">{message.name}</h3><a href={'mailto:'+message.email} className="text-sm text-ink-2 underline underline-offset-4">{message.email}</a></div><Checkbox label="Handled" checked={message.handled} onChange={()=>void toggleHandled(message)}/></div><p className="font-medium text-sm mt-3">{message.subject||'Contact message'}</p><p className="text-sm text-ink-2 whitespace-pre-wrap mt-2">{message.message}</p><p className="text-xs text-ink-3 mt-3">{new Date(message.created_at).toLocaleString()}</p></article>):<Tile variant="white" padding="lg"><p className="text-sm text-ink-2">No contact messages yet.</p></Tile>:subscribers.length?<div className={cardClass+' divide-y divide-line'}>{subscribers.map((item)=><div key={item.id} className="py-3 flex items-center justify-between gap-3"><div className="min-w-0"><a href={'mailto:'+item.email} className="text-sm font-medium underline underline-offset-4 break-all">{item.email}</a><p className="text-xs text-ink-3 mt-1">{item.source||'Website'} · {new Date(item.created_at).toLocaleDateString()}</p></div><div className="flex items-center gap-3"><Checkbox label="Handled" checked={handledSubscribers.has(item.id)} onChange={()=>void toggleSubscriberHandled(item)}/><Mail size={17} className="text-ink-3 shrink-0"/></div></div>)}</div>:<Tile variant="white" padding="lg"><p className="text-sm text-ink-2">No newsletter subscribers yet.</p></Tile>}
   </div>;
 }
 
