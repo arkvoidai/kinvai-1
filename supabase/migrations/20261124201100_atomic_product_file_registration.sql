@@ -28,7 +28,7 @@ begin
     '^products/' || p_product_id::text || '/[0-9a-fA-F-]{36}/[^/]{1,255}$'
   ) then raise exception 'invalid_product_file_storage_path'; end if;
   if p_file_name is null or pg_catalog.length(p_file_name) not between 1 and 255
-     or pg_catalog.position('/' in p_file_name) > 0 then raise exception 'invalid_product_file_name'; end if;
+     or pg_catalog.strpos(p_file_name, '/') > 0 then raise exception 'invalid_product_file_name'; end if;
   if p_size_bytes is null or p_size_bytes < 1 then raise exception 'invalid_product_file_size'; end if;
   if p_version is null or pg_catalog.length(pg_catalog.btrim(p_version)) not between 1 and 40 then raise exception 'invalid_product_file_version'; end if;
   if p_checksum_sha256 is null or p_checksum_sha256 !~ '^[0-9a-f]{64}$' then raise exception 'invalid_product_file_checksum'; end if;
