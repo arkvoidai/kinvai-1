@@ -237,6 +237,11 @@ export async function createApp(): Promise<Express> {
   app.use('/api/webhooks', webhooksRouter);
   const apiLimiter = createRateLimitMiddleware({ windowMs: 60_000, maxRequests: 120, keyPrefix: 'api' });
   app.use('/api', apiLimiter);
+  // This endpoint exposes only the deliberately public storefront configuration.
+  app.get('/api/config', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(getPublicServerConfig());
+  });
   app.use('/api/admin/image', adminImageRouter);
   app.use('/api/admin', adminRouter);
   app.use(express.json({ limit: '1mb' }));
