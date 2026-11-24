@@ -145,7 +145,8 @@ export function ProductPreviewModal(props: ProductPreviewModalProps) {
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center md:items-center md:p-5" data-product-preview-modal>
+        <motion.div key="product-preview-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          transition={{ duration: 0.18 }} className="fixed inset-0 z-[100] flex items-end justify-center md:items-center md:p-5" data-product-preview-modal>
           <motion.div role="presentation" onClick={onClose}
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="absolute inset-0 cursor-default bg-ink/45 backdrop-blur-[3px]" />
@@ -328,7 +329,7 @@ export function ProductPreviewModal(props: ProductPreviewModalProps) {
               </div>}
             </footer>
           </motion.div>
-        </div>
+        </motion.div>
       )}
     </AnimatePresence>,
     document.body
