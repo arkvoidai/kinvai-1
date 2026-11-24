@@ -91,13 +91,14 @@ function baseSeo(pathname: string, siteUrl: string): SeoResult {
 }
 
 async function buildSeo(pathname: string): Promise<SeoResult> {
+  const routePath = pathname === '/' ? '/' : pathname.replace(/\\/+$/, '') || '/';
   const { siteUrl, supabaseUrl } = getPublicServerConfig();
-  const cached = routeCache.get(pathname);
+  const cached = routeCache.get(routePath);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
-  const result = baseSeo(pathname, siteUrl);
+  const result = baseSeo(routePath, siteUrl);
   const client = getPublicSeoClient();
 
-  if (pathname === '/') {
+  if (routePath === '/') {
     result.structuredData = [
       { '@context': 'https://schema.org', '@type': 'Organization', name: 'Kinvai', legalName: 'Arkvoid Inc.', url: siteUrl, email: 'heyarkvoid@gmail.com' },
       { '@context': 'https://schema.org', '@type': 'WebSite', name: 'Kinvai', url: siteUrl, potentialAction: { '@type': 'SearchAction', target: siteUrl + '/search?q={search_term_string}', 'query-input': 'required name=search_term_string' } },
@@ -174,7 +175,7 @@ async function buildSeo(pathname: string): Promise<SeoResult> {
     for (const [key, value] of routeCache) if (value.expiresAt <= Date.now()) routeCache.delete(key);
     if (routeCache.size > 300) routeCache.clear();
   }
-  routeCache.set(pathname, { value: result, expiresAt: Date.now() + ROUTE_CACHE_TTL });
+  routeCache.set(routePath, { value: result, expiresAt: Date.now() + ROUTE_CACHE_TTL });
   return result;
 }
 
