@@ -39,8 +39,8 @@ export function AboutPage() {
   return (
     <ContentFrame crumb="About" eyebrow="A better starting point" title="Built once, properly." lead="The blank page costs time. Kinvai exists to make the first useful version of a system available before the work begins." metaTitle="About Kinvai — Built once, properly.">
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4">
-        <CopyTile eyebrow="THE REASON" heading="The same foundations get rebuilt every week." className="lg:col-span-7 bg-peach">
-          A spreadsheet, checklist, project plan or creative framework can take days to assemble before the real work even starts. Kinvai is built around a simple idea: make useful starting systems available as downloadable files, so more time goes into the work only the owner can do.
+        <CopyTile eyebrow="THE REASON" heading="The same foundations get rebuilt over and over." className="lg:col-span-7 bg-peach">
+          A spreadsheet, checklist, project plan or creative framework can take time to assemble before the real work even starts. Kinvai is built around a simple idea: make useful starting systems available as downloadable files, so more time goes into the work only the owner can do.
         </CopyTile>
         {/* OWNER_CONFIRM: verify that every published product page consistently displays the actual formats, included files, requirements and first steps. */}
         <CopyTile eyebrow="THE STANDARD" heading="A product should say exactly what is inside." className="lg:col-span-5">
@@ -53,6 +53,7 @@ export function AboutPage() {
         <CopyTile eyebrow="WHO IS BEHIND IT" heading="A direct line to the person making the work." className="lg:col-span-8">
           <p>Kinvai is made by Manish Talukdar under Arkvoid Inc.</p>
           <p className="mt-3">Questions about a product, order or licence can be sent to <a className="font-semibold text-brand-deep underline underline-offset-4" href="mailto:heyarkvoid@gmail.com">heyarkvoid@gmail.com</a>.</p>
+          {/* OWNER_CONFIRM: confirm the catalogue is owner-operated and there are no third-party sellers. */}
           <p className="mt-3">The catalogue is owner-operated. There are no third-party sellers.</p>
         </CopyTile>
       </section>
