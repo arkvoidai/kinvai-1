@@ -7,7 +7,7 @@ import { Accordion, type AccordionItemData, Button } from '../primitives';
 /**
  * Section 12 — FAQ:
  * Six exact questions in an accessible Accordion, accurate to Kinvai's real checkout & delivery flow.
- * Unconfirmed policy lines are explicitly marked // OWNER_CONFIRM and tracked in /docs/CLAIMS_TO_CONFIRM.md.
+ * Customer-facing answers describe the current licence, order and support flows without promising unverified service levels.
  */
 export function HomeFaqSection() {
   const { flags } = getPublicConfig();
@@ -49,11 +49,10 @@ export function HomeFaqSection() {
       id: 'refunds',
       title: 'What is the refund policy?',
       content: (
-        // OWNER_CONFIRM — refund eligibility window & digital-goods terms listed in /docs/CLAIMS_TO_CONFIRM.md
         <p>
-          Because Kinvai sells downloadable digital files that unlock immediately on purchase,
-          refunds are handled on a clear, fair policy for defective, mismatched or undownloaded
-          files. Read the exact terms before buying on the{' '}
+          For duplicate charges, missing access or a file that does not match its listing, contact
+          support with your order number. Requests are reviewed under the published Refund Policy
+          and any consumer rights that apply. Read the policy before buying on the{' '}
           <Link to="/legal/refunds" viewTransition className="text-brand-deep underline underline-offset-2 font-medium">
             Refund Policy
           </Link>{' '}
@@ -80,11 +79,10 @@ export function HomeFaqSection() {
       id: 'updates',
       title: 'Do I get updates?',
       content: (
-        // OWNER_CONFIRM — lifetime minor/version update scope listed in /docs/CLAIMS_TO_CONFIRM.md
         <p>
-          Yes — updates released for the version of a system you purchased are uploaded directly to
-          the same product record and become available in your account library at no extra charge.
-          See details in our{' '}
+          Your purchase gives you access to the version listed when you buy. If a revised file is
+          later published for that product, it may become available in your account library; Kinvai
+          does not promise a fixed update schedule. See the usage terms in our{' '}
           <Link to="/licence" viewTransition className="text-brand-deep underline underline-offset-2 font-medium">
             Licence
           </Link>

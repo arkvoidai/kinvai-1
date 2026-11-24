@@ -11,27 +11,23 @@ interface StandardPromise {
 const STANDARD_PROMISES: StandardPromise[] = [
   {
     num: '01',
-    // OWNER_CONFIRM — listed in /docs/CLAIMS_TO_CONFIRM.md
-    headline: 'Tested on real projects before going on sale.',
-    detail: 'Every formula, layout and checklist runs through real client or operating workflows before release.',
+    headline: 'Know what is included before you buy.',
+    detail: 'Product listings describe the downloadable files and the formats attached to each product.',
   },
   {
     num: '02',
-    // OWNER_CONFIRM — listed in /docs/CLAIMS_TO_CONFIRM.md
-    headline: 'Readable documentation inside every file.',
-    detail: 'Each download opens with clear setup notes, field definitions and a first-hour guide.',
+    headline: 'Check the formats and requirements.',
+    detail: 'Review the product page for its listed file formats, requirements, version and first steps.',
   },
   {
     num: '03',
-    // OWNER_CONFIRM — listed in /docs/CLAIMS_TO_CONFIRM.md
-    headline: 'Clean files — no locked sheets, no watermarks, no bloat.',
-    detail: 'Inspect every cell, customize every layer and adapt the structure directly to your own work.',
+    headline: 'Files for work you can make your own.',
+    detail: 'Use the supplied files within the personal and direct commercial uses described by the Kinvai licence.',
   },
   {
     num: '04',
-    // OWNER_CONFIRM — listed in /docs/CLAIMS_TO_CONFIRM.md
-    headline: 'Lifetime updates to the version you buy.',
-    detail: 'When a purchased system gets fixes or refinements, the updated file appears in your library.',
+    headline: 'Your purchase stays in your library.',
+    detail: 'Return to your account library to access the product while your purchase entitlement remains active.',
   },
 ];
 

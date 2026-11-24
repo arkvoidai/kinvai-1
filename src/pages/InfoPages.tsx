@@ -42,19 +42,16 @@ export function AboutPage() {
         <CopyTile eyebrow="THE REASON" heading="The same foundations get rebuilt over and over." className="lg:col-span-7 bg-peach">
           A spreadsheet, checklist, project plan or creative framework can take time to assemble before the real work even starts. Kinvai is built around a simple idea: make useful starting systems available as downloadable files, so more time goes into the work only the owner can do.
         </CopyTile>
-        {/* OWNER_CONFIRM: verify that every published product page consistently displays the actual formats, included files, requirements and first steps. */}
         <CopyTile eyebrow="THE STANDARD" heading="A product should say exactly what is inside." className="lg:col-span-5">
-          Product pages are intended to show the actual formats, included files, requirements and first steps. The catalogue should be checked against the attached deliverables before a product is published.
+          Each product listing describes the files and formats recorded for that product. Review the listed contents and requirements before purchase.
         </CopyTile>
-        {/* OWNER_CONFIRM: confirm the actual authoring, testing and publishing checklist before making any stronger quality promise. */}
         <CopyTile eyebrow="HOW PRODUCTS ARE PREPARED" heading="Build. Compare. Publish." className="lg:col-span-4">
-          Each product begins with a repeated task or a blank-page problem. Its working files are assembled into a reusable download. The final listing should be reviewed against the files attached to that product, including the displayed formats and version.
+          Kinvai's catalogue is organised around reusable digital files. Product listings identify the current version and the formats recorded for each downloadable product.
         </CopyTile>
         <CopyTile eyebrow="WHO IS BEHIND IT" heading="A direct line to the person making the work." className="lg:col-span-8">
-          <p>Kinvai is made by Manish Talukdar under Arkvoid Inc.</p>
+          <p>Kinvai is created by Manish Talukdar and presented under the business name Arkvoid Inc.</p>
           <p className="mt-3">Questions about a product, order or licence can be sent to <a className="font-semibold text-brand-deep underline underline-offset-4" href="mailto:heyarkvoid@gmail.com">heyarkvoid@gmail.com</a>.</p>
-          {/* OWNER_CONFIRM: confirm the catalogue is owner-operated and there are no third-party sellers. */}
-          <p className="mt-3">The catalogue is owner-operated. There are no third-party sellers.</p>
+          <p className="mt-3">The catalogue is maintained by its owner. Products are offered directly through Kinvai.</p>
         </CopyTile>
       </section>
       <div className="flex flex-wrap gap-3">
@@ -290,7 +287,7 @@ export function PrivacyPage() {
   return (
     <ContentFrame crumb="Privacy" eyebrow="Legal draft · owner and lawyer review required" title="Privacy policy" lead="This draft describes the information used to sign in, process a digital order, provide downloads and respond to support requests. It is not ready for publication until the marked details are completed." metaTitle="Privacy policy — Kinvai">
       <section className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-        <CopyTile heading="Who operates Kinvai.">Kinvai is operated by Arkvoid Inc. Contact: <a className="font-semibold text-brand-deep underline" href="mailto:heyarkvoid@gmail.com">heyarkvoid@gmail.com</a>. [OWNER TO COMPLETE: legal entity address, incorporation jurisdiction, registration details and privacy contact, if different.]</CopyTile>
+        <CopyTile heading="Who operates Kinvai.">Kinvai is presented under the business name Arkvoid Inc. Contact: <a className="font-semibold text-brand-deep underline" href="mailto:heyarkvoid@gmail.com">heyarkvoid@gmail.com</a>. [OWNER TO COMPLETE: legal entity address, incorporation jurisdiction, registration details and privacy contact, if different.]</CopyTile>
         <CopyTile heading="Account information.">Google sign-in is used to authenticate an account. The application may process the account identifier, email address, display name and profile image supplied through the sign-in flow. [OWNER TO COMPLETE: confirm the exact Google OAuth scopes and profile fields retained.]</CopyTile>
         <CopyTile heading="Orders and payment processors.">Kinvai stores order, item, amount, currency, provider reference, payment status and entitlement records needed to fulfil a purchase. Razorpay and PayPal process payment details under their own terms and privacy notices. Kinvai does not intentionally store full card numbers or security codes.</CopyTile>
         <CopyTile heading="Downloads and support.">Download logs may include the account, product and file reference, request time, browser user-agent and an IP-derived hash for delivery security. Contact messages and newsletter sign-ups are retained so the store can respond and manage communications. [OWNER TO COMPLETE: confirm log fields and any additional operational logs.]</CopyTile>
@@ -307,7 +304,7 @@ export function TermsPage() {
   return (
     <ContentFrame crumb="Terms" eyebrow="Legal draft · owner and lawyer review required" title="Terms of service" lead="These draft terms cover access to the storefront and purchases of downloadable digital products. They need jurisdiction-specific legal review before they can govern a live store." metaTitle="Terms of service — Kinvai">
       <section className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-        <CopyTile heading="Operator and eligibility.">The storefront is operated by Arkvoid Inc. at kinvai.arkvoid.com. [OWNER TO COMPLETE: legal address, company registration, governing law, minimum age and any geographic restrictions.]</CopyTile>
+        <CopyTile heading="Operator and eligibility.">Kinvai is presented under the business name Arkvoid Inc. at kinvai.arkvoid.com. [OWNER TO COMPLETE: legal address, company registration, governing law, minimum age and any geographic restrictions.]</CopyTile>
         <CopyTile heading="Digital products.">Kinvai sells downloadable digital files. The product page describes the listed formats, included deliverables, requirements and current version. Review that information before placing an order.</CopyTile>
         <CopyTile heading="Orders and payment.">Prices are displayed in USD. Payment is processed through the provider offered at checkout, which may include Razorpay or PayPal. An order is complete only after the payment provider result is verified by Kinvai's server and the order is marked paid.</CopyTile>
         <CopyTile heading="Access and account security.">Purchases are linked to the signed-in account. Keep access to that account secure and contact support if access is lost or a purchase appears on the wrong account. Do not share private download links.</CopyTile>
