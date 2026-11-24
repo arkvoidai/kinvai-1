@@ -228,6 +228,7 @@ export async function getCollection(slug: string): Promise<DataEnvelope<Collecti
         return { data: null, source: 'supabase', isPreviewData: false, error: 'The collection data could not be read.' };
       }
     } catch (err) {
+      logRepositoryError('getCollection', err);
       queryError = err instanceof Error ? err.message : 'Could not load collection.';
     }
   }
@@ -603,6 +604,7 @@ export async function getProductBySlug(
         return { data: null, source: 'supabase', isPreviewData: false };
       }
     } catch (err) {
+      logRepositoryError('getProductBySlug', err);
       queryError = err instanceof Error ? err.message : 'Could not load product.';
     }
   }
