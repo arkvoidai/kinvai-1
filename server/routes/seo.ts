@@ -86,7 +86,7 @@ seoRouter.get('/sitemap.xml', async (_req, res) => {
         if (error || !data) break;
         for (const collection of data as Array<{ slug: string }>) {
           const loc = escapeXml(siteUrl + '/collections/' + encodeURIComponent(collection.slug));
-          urls.push('  <url><loc>' + loc + '</url>');
+          urls.push('  <url><loc>' + loc + '</loc></url>');
         }
         if (data.length < pageSize) break;
       }
