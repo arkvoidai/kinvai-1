@@ -22,6 +22,8 @@ interface ProductPreviewModalProps {
   owned: boolean;
   inCart: boolean;
   justAdded: boolean;
+  initialTab?: ProductPreviewTab;
+  initialIndex?: number;
   onClose: () => void;
   onAddToCart: (event: MouseEvent<HTMLButtonElement>) => void;
   onBuyNow: () => void;
@@ -47,7 +49,7 @@ function fileIcon(name: string) {
 export function ProductPreviewModal(props: ProductPreviewModalProps) {
   const {
     open, product, collection, media, owned, inCart, justAdded,
-    onClose, onAddToCart, onBuyNow, onGoToCheckout,
+    initialTab = 'gallery', initialIndex = 0, onClose, onAddToCart, onBuyNow, onGoToCheckout,
   } = props;
   const [activeTab, setActiveTab] = useState<ProductPreviewTab>('gallery');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -72,8 +74,8 @@ export function ProductPreviewModal(props: ProductPreviewModalProps) {
 
   useEffect(() => {
     if (!open) return;
-    setActiveTab('gallery');
-    setActiveIndex(0);
+    setActiveTab(initialTab);
+    setActiveIndex(initialIndex);
     setZoomed(false);
     previousFocus.current = document.activeElement as HTMLElement | null;
     const oldOverflow = document.body.style.overflow;
@@ -116,7 +118,7 @@ export function ProductPreviewModal(props: ProductPreviewModalProps) {
       document.body.style.paddingRight = oldPadding;
       previousFocus.current?.focus();
     };
-  }, [open, activeTab, onClose, moveImage]);
+  }, [open, activeTab, initialTab, initialIndex, onClose, moveImage]);
 
   const onTouchStart = (event: TouchEvent<HTMLDivElement>) => {
     const touch = event.touches[0];
