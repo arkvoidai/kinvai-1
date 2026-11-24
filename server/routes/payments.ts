@@ -197,7 +197,7 @@ paymentsRouter.post('/razorpay/verify', verifyLimiter, async (req, res) => {
       console.error(JSON.stringify({
         event: 'razorpay_mark_paid_failed',
         orderId: order.id,
-        code: paidError.code || 'database_error',
+        code: paidError?.code || 'database_error',
       }));
       res.status(502).json({ error: 'The payment was captured, but the order is still being confirmed. Refresh in a moment.' });
       return;
