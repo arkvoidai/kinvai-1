@@ -255,3 +255,11 @@ This file records every engineering decision and assumption made across Kinvai b
 
 5. **Explicit verification boundary**
    - No local repository runtime was available in this connector session. bun run lint, bun run test, bun run build, Playwright/browser QA, breakpoint inspection, gzip bundle measurement, production deploy and live provider/download flows remain NOT VERIFIED. Build is deliberately expected to fail until the marked owner/legal copy is completed.
+
+
+## Owner-directed storefront wording — 2026-11-24
+
+- The owner instructed that the public-facing business name be **Arkvoid Inc.** This is used as a display/business name only. The site copy does not state or imply a verified incorporation jurisdiction, company number, registered office, or corporate status.
+- Homepage/About wording was narrowed to avoid claims that every product is independently tested, contains a prescribed documentation pack, is watermark-free, or receives lifetime updates. Product pages remain the source of truth for included files, formats, requirements and version.
+- The purchase FAQ now describes access to the purchased version and does not promise a fixed update schedule. Refund FAQ wording points customers to the Refunds page and applicable consumer rights rather than asserting an unverified fixed refund window.
+- Privacy, Terms and Refunds still contain unresolved factual/legal details. The production owner-marker gate remains enabled. Do not publish these drafts as approved legal terms or bypass the gate until the missing operational facts are verified and qualified legal review is complete.
