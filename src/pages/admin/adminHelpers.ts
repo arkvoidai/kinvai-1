@@ -208,11 +208,13 @@ export async function storeProductImage(
 ): Promise<ProductMedia> {
   const cleanAlt = alt.trim();
   if (!cleanAlt) throw new Error('Add descriptive alt text before saving this image.');
+
   const processed = await processImage(image);
   const mediaId = crypto.randomUUID();
   const basePath = buildProductMediaBasePath(product.id, mediaId);
   const storage = client.storage.from('product-media');
   const uploadedPaths: string[] = [];
+  let metadataInserted = false;
 
   try {
     for (const item of processed.variants) {
@@ -224,15 +226,6 @@ export async function storeProductImage(
       });
       if (error) throw error;
       uploadedPaths.push(objectPath);
-    }
-
-    if (setAsCover) {
-      const { error: clearError } = await client
-        .from('product_media')
-        .update({ kind: 'gallery' })
-        .eq('product_id', product.id)
-        .eq('kind', 'cover');
-      if (clearError) throw clearError;
     }
 
     const { data: latestMedia, error: sortError } = await client
@@ -251,7 +244,7 @@ export async function storeProductImage(
         id: mediaId,
         product_id: product.id,
         storage_path: basePath,
-        kind: setAsCover ? 'cover' : 'gallery',
+        kind: 'gallery',
         alt: cleanAlt,
         width: processed.width,
         height: processed.height,
@@ -261,17 +254,71 @@ export async function storeProductImage(
       .select('*')
       .single();
     if (insertError || !data) throw insertError || new Error('Image metadata was not saved.');
+    metadataInserted = true;
 
     if (setAsCover) {
-      const { error: coverError } = await client
-        .from('products')
-        .update({ cover_path: basePath })
-        .eq('id', product.id);
+      const { error: coverError } = await client.rpc('set_product_cover', {
+        p_product_id: product.id,
+        p_media_id: mediaId,
+      });
       if (coverError) throw coverError;
     }
-    return data as ProductMedia;
+
+    return { ...(data as ProductMedia), kind: setAsCover ? 'cover' : 'gallery' };
   } catch (error) {
-    if (uploadedPaths.length) await storage.remove(uploadedPaths).catch(() => undefined);
+    if (metadataInserted) {
+      const { error: cleanupError } = await client
+        .from('product_media')
+        .delete()
+        .eq('id', mediaId)
+        .eq('product_id', product.id);
+      if (cleanupError) {
+        console.error('[kinvai-admin] failed to roll back product media metadata:', cleanupError.message);
+      }
+    }
+    if (uploadedPaths.length) {
+      const { error: cleanupError } = await storage.remove(uploadedPaths);
+      if (cleanupError) {
+        console.error('[kinvai-admin] failed to clean up incomplete product media upload:', cleanupError.message);
+      }
+    }
+    throw error;
+  }
+}
+
+export async function uploadCollectionImage(
+  client: SupabaseClient,
+  collectionId: string,
+  image: File
+): Promise<string> {
+  const validation = ImageUploadSchema.safeParse(image);
+  if (!validation.success) throw new Error(validation.error.issues[0]?.message || 'Choose a supported image.');
+
+  const processed = await processImage(image);
+  const mediaId = crypto.randomUUID();
+  const basePath = 'collections/' + collectionId + '/' + mediaId;
+  const storage = client.storage.from('product-media');
+  const uploadedPaths: string[] = [];
+
+  try {
+    for (const item of processed.variants) {
+      const objectPath = getProductMediaVariantPath(basePath, item.variant);
+      const { error } = await storage.upload(objectPath, item.blob, {
+        contentType: 'image/webp',
+        cacheControl: '31536000',
+        upsert: false,
+      });
+      if (error) throw error;
+      uploadedPaths.push(objectPath);
+    }
+    return basePath;
+  } catch (error) {
+    if (uploadedPaths.length) {
+      const { error: cleanupError } = await storage.remove(uploadedPaths);
+      if (cleanupError) {
+        console.error('[kinvai-admin] failed to clean up incomplete collection image upload:', cleanupError.message);
+      }
+    }
     throw error;
   }
 }

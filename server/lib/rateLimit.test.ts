@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { MemoryRateLimiter } from './rateLimit';
+import { MemoryRateLimiter, resolveRateLimitIdentity } from './rateLimit';
 
 test('MemoryRateLimiter allows requests up to maxRequests and blocks overflow', () => {
   const limiter = new MemoryRateLimiter({ windowMs: 1000, maxRequests: 3 });
@@ -41,7 +41,7 @@ test('MemoryRateLimiter isolates keys independently', () => {
 
 
 test('rate-limit IP resolution ignores caller-supplied forwarded headers', async () => {
-  const { resolveRateLimitIp, resolveRateLimitIdentity } = await import('./rateLimit');
+  const { resolveRateLimitIp } = await import('./rateLimit');
   assert.equal(resolveRateLimitIp('198.51.100.23', '10.0.0.4'), '198.51.100.23');
   assert.equal(resolveRateLimitIp(undefined, '10.0.0.4'), '10.0.0.4');
   assert.equal(resolveRateLimitIp(undefined, undefined), 'unknown');

@@ -306,12 +306,14 @@ function ImageStudio({ product, collection, onProductUpdate }: {
 
   const makeCover = async (item: ProductMedia) => {
     if (!client) return;
-    const { error: clearError } = await client.from('product_media').update({ kind: 'gallery' }).eq('product_id', product.id).eq('kind', 'cover');
-    if (clearError) { toast({ title: 'Cover was not changed', description: clearError.message, tone: 'error' }); return; }
-    const { error } = await client.from('product_media').update({ kind: 'cover' }).eq('id', item.id);
-    if (error) { toast({ title: 'Cover was not changed', description: error.message, tone: 'error' }); return; }
-    const { error: updateError } = await client.from('products').update({ cover_path: item.storage_path }).eq('id', product.id);
-    if (updateError) { toast({ title: 'Cover was not changed', description: updateError.message, tone: 'error' }); return; }
+    const { error } = await client.rpc('set_product_cover', {
+      p_product_id: product.id,
+      p_media_id: item.id,
+    });
+    if (error) {
+      toast({ title: 'Cover was not changed', description: error.message, tone: 'error' });
+      return;
+    }
     onProductUpdate({ ...product, cover_path: item.storage_path });
     await refreshMedia();
     toast({ title: 'Cover updated across the storefront', tone: 'success' });
@@ -319,16 +321,38 @@ function ImageStudio({ product, collection, onProductUpdate }: {
 
   const removeMedia = async (item: ProductMedia) => {
     if (!client || !window.confirm('Delete this image from the product?')) return;
-    const paths = [480, 960, 1600].map((width) => getProductMediaVariantPath(item.storage_path, width as 480 | 960 | 1600));
+
+    const { data: deletedPath, error } = await client.rpc('delete_product_media', {
+      p_product_id: product.id,
+      p_media_id: item.id,
+    });
+    if (error || typeof deletedPath !== 'string') {
+      toast({
+        title: 'Image could not be deleted',
+        description: error?.message || 'The media record was not removed.',
+        tone: 'error',
+      });
+      return;
+    }
+
+    const paths = [480, 960, 1600].map((width) =>
+      getProductMediaVariantPath(deletedPath, width as 480 | 960 | 1600)
+    );
     const { error: storageError } = await client.storage.from('product-media').remove(paths);
-    if (storageError) { toast({ title: 'Image could not be deleted', description: storageError.message, tone: 'error' }); return; }
-    const { error } = await client.from('product_media').delete().eq('id', item.id);
-    if (error) { toast({ title: 'Image record could not be deleted', description: error.message, tone: 'error' }); return; }
+
     if (product.cover_path === item.storage_path) {
-      await client.from('products').update({ cover_path: null }).eq('id', product.id);
       onProductUpdate({ ...product, cover_path: null });
     }
     await refreshMedia();
+
+    if (storageError) {
+      toast({
+        title: 'Image removed from the catalogue',
+        description: 'The unused Storage files could not be fully cleaned up. Retry cleanup from Supabase Storage.',
+        tone: 'error',
+      });
+      return;
+    }
     toast({ title: 'Image removed', tone: 'success' });
   };
 
@@ -345,10 +369,17 @@ function ImageStudio({ product, collection, onProductUpdate }: {
     const index = media.findIndex((entry) => entry.id === item.id);
     const swap = media[index + direction];
     if (!swap) return;
-    const { error } = await client.from('product_media').update({ sort_order: swap.sort_order }).eq('id', item.id);
-    const { error: swapError } = await client.from('product_media').update({ sort_order: item.sort_order }).eq('id', swap.id);
-    if (error || swapError) toast({ title: 'Image order did not save', description: (error || swapError)?.message, tone: 'error' });
-    else await refreshMedia();
+
+    const { error } = await client.rpc('swap_product_media_order', {
+      p_product_id: product.id,
+      p_media_id: item.id,
+      p_swap_media_id: swap.id,
+    });
+    if (error) {
+      toast({ title: 'Image order did not save', description: error.message, tone: 'error' });
+      return;
+    }
+    await refreshMedia();
   };
 
   const saveImage = async (blob: Blob, alt: string, source: 'upload' | 'gemini', asCover: boolean) => {
