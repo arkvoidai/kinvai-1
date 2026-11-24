@@ -151,3 +151,26 @@ This file records every engineering decision and assumption made across Kinvai b
    - `ProductLightbox` opens any available `product_media` image with a keyboard focus trap, `Escape` to close, `ArrowLeft`/`ArrowRight` navigation, touch swipe support, and a `220ms` crossfade.
    - Shared-element transitions attach a deterministic `viewTransitionName` (`kv-cover-<slug>`) strictly to the active visible product cover on `ProductCard` and `ProductDetailPage`, with CSS reduced-motion disable and `PageTransition` fade fallback when unsupported.
    - `usePageMeta` updates `document.title` and upserts a single canonical `<link rel="canonical">` on every route change (removing duplicates/stale links and omitting canonical on `noindex` routes such as 404 or archived owner views).
+
+
+## Prompt 7: Account, Library, Orders & Profile
+
+1. **Auth boot and guarded routes**
+   - Keep the existing browser Supabase singleton configured for PKCE, persistent browser storage, automatic token refresh, and URL callback detection.
+   - Register the auth-state listener before reading the boot session; do not await database requests inside the auth callback. Protected `/account` and `/checkout` wait for boot, then open the global sign-in sheet with the exact pathname, query, and hash as the return target.
+   - OAuth callback errors use a calm retry state. The callback relies on the singleton client's URL detection/session initialization to avoid exchanging a PKCE code twice.
+
+2. **Account data and RLS**
+   - Account library reads only entitlements with `revoked_at IS NULL`, then loads product details allowed by the existing entitlement-aware product RLS policy.
+   - Order and order-item history is queried through the existing own-order RLS policies. Profile updates write only `display_name` and `country_code`; email remains read-only.
+   - Reviews are written after an active entitlement check, use the existing unique `(user_id, product_id)` constraint, and are submitted with `status = 'pending'`. The existing review update trigger resets edited reviews to pending. RLS remains the final ownership enforcement layer.
+
+3. **Private file metadata and download dependency**
+   - Customer sessions cannot select `product_files` directly (the current policy is admin-only). `GET /api/library/files` therefore verifies the bearer token with Supabase Auth, looks up active entitlements, and returns only active file display metadata; it never returns private `storage_path` values or signed URLs.
+   - Library download buttons call `GET /api/download/:productId` with the bearer token as specified for Prompt 8. The current downloads router remains a deliberate 501 stub at this prompt boundary; the singular route is mounted so Prompt 8 can replace the stub without changing the account UI. Full file download is not complete until Prompt 8 implements and verifies signed delivery.
+
+4. **OAuth redirect allowlist**
+   - The production callback and Supabase Google provider callback are recorded in `docs/AUTH_SETUP.md`. AI Studio preview and Cloud Run hosts are runtime-specific and are intentionally not guessed or broadly wildcarded; add each active exact callback URL to the Supabase allowlist when using those environments.
+
+5. **No schema or production-data changes**
+   - Existing Supabase tables, RLS policies, triggers, and indexes support this prompt. No migration or live database mutation was performed for this implementation.

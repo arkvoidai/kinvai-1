@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { RequireAuth } from '../components/auth/RequireAuth';
 import { Shell } from '../components/layout/Shell';
 import { AccountPage } from '../pages/AccountPage';
 import { AdminShellPage } from '../pages/AdminShellPage';
@@ -50,10 +51,10 @@ export function AppRouter() {
           <Route path="/search" element={<SearchPage />} />
           <Route path="/saved" element={<SavedPage />} />
           <Route path="/cart-redirect" element={<CartRedirectPage />} />
-          <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/checkout" element={<RequireAuth><CheckoutPage /></RequireAuth>} />
           <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
           <Route path="/checkout/cancelled" element={<CheckoutCancelledPage />} />
-          <Route path="/account" element={<AccountPage />} />
+          <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/how-it-works" element={<HowItWorksPage />} />

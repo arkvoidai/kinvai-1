@@ -21,7 +21,7 @@ export interface AuthContextValue {
   loading: boolean;
   configured: boolean;
   signInWithGoogle: (redirectPath?: string) => Promise<{ error: string | null }>;
-  signOut: () => Promise<void>;
+  signOut: () => Promise<{ error: string | null }>;
   refreshProfile: () => Promise<void>;
 }
 
@@ -30,6 +30,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 async function fetchUserProfile(userId: string): Promise<Profile | null> {
   const client = getSupabaseBrowserClient();
   if (!client) return null;
+
   try {
     const { data, error } = await client
       .from('profiles')
@@ -49,61 +50,81 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const bootedRef = useRef(false);
+  const profileRequestRef = useRef(0);
 
   const client = getSupabaseBrowserClient();
   const configured = Boolean(client);
 
   const syncSession = useCallback(async (session: Session | null) => {
+    const requestId = ++profileRequestRef.current;
     const nextUser = session?.user ?? null;
+
     setUser(nextUser);
-    if (nextUser) {
-      const nextProfile = await fetchUserProfile(nextUser.id);
+    setProfile(null);
+
+    if (!nextUser) return;
+
+    const nextProfile = await fetchUserProfile(nextUser.id);
+    if (requestId === profileRequestRef.current) {
       setProfile(nextProfile);
-    } else {
-      setProfile(null);
     }
   }, []);
 
   useEffect(() => {
-    if (bootedRef.current) return;
-    bootedRef.current = true;
-
     if (!client) {
+      setUser(null);
+      setProfile(null);
       setLoading(false);
       return;
     }
 
     let active = true;
+    const bootRevision = profileRequestRef.current;
 
-    // Resolve the session ONCE at boot via getSession()
-    client.auth
-      .getSession()
-      .then(async ({ data }) => {
-        if (!active) return;
-        await syncSession(data.session);
-        if (active) {
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setUser(null);
-          setProfile(null);
-          setLoading(false);
-        }
-      });
-
-    // Keep session live on subsequent auth state changes
+    // Subscribe before reading the stored session so a sign-in/sign-out event cannot be missed.
+    // Keep this callback synchronous; profile reads run after it returns.
+    let initialSessionEventReceived = false;
     const {
       data: { subscription },
-    } = client.auth.onAuthStateChange((_event, session) => {
+    } = client.auth.onAuthStateChange((event, session) => {
       if (!active) return;
-      void syncSession(session);
+      if (event === 'INITIAL_SESSION') initialSessionEventReceived = true;
+
+      // Defer all Supabase reads until this auth callback has returned to avoid lock contention.
+      queueMicrotask(() => {
+        if (!active) return;
+        void syncSession(session).finally(() => {
+          if (active && event === 'INITIAL_SESSION') setLoading(false);
+        });
+      });
     });
+
+    client.auth
+      .getSession()
+      .then(async ({ data, error }) => {
+        if (
+          !active ||
+          initialSessionEventReceived ||
+          profileRequestRef.current !== bootRevision
+        ) return;
+        if (error) {
+          setUser(null);
+          setProfile(null);
+        } else {
+          await syncSession(data.session);
+        }
+        if (active && !initialSessionEventReceived) setLoading(false);
+      })
+      .catch(() => {
+        if (!active || profileRequestRef.current !== bootRevision) return;
+        setUser(null);
+        setProfile(null);
+        setLoading(false);
+      });
 
     return () => {
       active = false;
+      profileRequestRef.current += 1;
       subscription.unsubscribe();
     };
   }, [client, syncSession]);
@@ -111,30 +132,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithGoogle = useCallback(
     async (redirectPath = '/account'): Promise<{ error: string | null }> => {
       if (!client) {
-        return {
-          error: 'Sign-in is unavailable until Supabase authentication is configured.',
-        };
+        return { error: 'Sign-in is unavailable until Supabase authentication is configured.' };
       }
+
       const { siteUrl } = getPublicConfig();
       const runtimeOrigin = typeof window !== 'undefined' ? window.location.origin : '';
       const redirectTo = buildOAuthRedirectUrl(siteUrl, redirectPath, runtimeOrigin);
 
-      const { error } = await client.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo,
-        },
-      });
-      return { error: error ? error.message : null };
+      try {
+        const { error } = await client.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo },
+        });
+        return { error: error ? error.message : null };
+      } catch {
+        return { error: 'Google sign-in could not start. Please try again.' };
+      }
     },
     [client]
   );
 
-  const signOut = useCallback(async () => {
-    if (!client) return;
-    await client.auth.signOut();
-    setUser(null);
-    setProfile(null);
+  const signOut = useCallback(async (): Promise<{ error: string | null }> => {
+    if (!client) return { error: 'Sign-out is unavailable right now.' };
+
+    try {
+      const { error } = await client.auth.signOut();
+      if (error) return { error: error.message };
+      setUser(null);
+      setProfile(null);
+      return { error: null };
+    } catch {
+      return { error: 'Sign-out could not be completed. Please try again.' };
+    }
   }, [client]);
 
   const refreshProfile = useCallback(async () => {
@@ -162,8 +191,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error('useAuth must be used inside AuthProvider');
-  }
+  if (!ctx) throw new Error('useAuth must be used inside AuthProvider');
   return ctx;
 }
