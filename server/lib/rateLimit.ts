@@ -166,7 +166,7 @@ export function createRateLimitMiddleware(options: RateLimitOptions) {
         res.status(503).json({ error: 'Request protection is temporarily unavailable.' });
         return;
       }
-      const local = localLimiter.check(`${prefix}:${ip}`);
+      const local = localLimiter.check(`${prefix}:${identity}`);
       sendRateLimitResult(res, options, local);
       if (local.allowed) next();
     }
