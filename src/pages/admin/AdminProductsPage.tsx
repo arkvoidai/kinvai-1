@@ -519,7 +519,7 @@ function FilesManager({ product, files, loading, onFilesChange }: {
   const client = getSupabaseBrowserClient();
   const { toast } = useToast();
   const uploadRef = useRef<{ abort: (shouldTerminate?: boolean) => Promise<void>; start: () => void } | null>(null);
-  const pendingUploadRef = useRef<{ id: string; objectPath: string; checksum: string } | null>(null);
+  const pendingUploadRef = useRef<{ id: string; objectPath: string; checksum: string; uploaded: boolean } | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [version, setVersion] = useState(product.version || '1.0');
   const [progress, setProgress] = useState(0);
@@ -527,38 +527,170 @@ function FilesManager({ product, files, loading, onFilesChange }: {
   const [uploadError, setUploadError] = useState('');
   const [isReplacing, setIsReplacing] = useState(false);
 
+  const registerUploadedFile = async (
+    file: File,
+    fileVersion: string,
+    pending: { id: string; objectPath: string; checksum: string }
+  ) => {
+    const registrationInput = {
+      p_product_id: product.id,
+      p_file_id: pending.id,
+      p_storage_path: pending.objectPath,
+      p_file_name: file.name,
+      p_mime_type: file.type || null,
+      p_size_bytes: file.size,
+      p_version: fileVersion,
+      p_checksum_sha256: pending.checksum,
+      p_deactivate_existing: isReplacing,
+    };
+
+    try {
+      // The RPC is idempotent by file ID. Retrying a lost response cannot
+      // duplicate metadata or deactivate a previous version twice.
+      let registration = await client!.rpc('register_product_file', registrationInput);
+      if (registration.error) {
+        registration = await client!.rpc('register_product_file', registrationInput);
+      }
+
+      let registered = Array.isArray(registration.data)
+        ? registration.data[0]
+        : registration.data;
+
+      if (registration.error || !registered || registered.id !== pending.id) {
+        const { data: existing, error: lookupError } = await client!
+          .from('product_files')
+          .select('*')
+          .eq('id', pending.id)
+          .eq('product_id', product.id)
+          .maybeSingle();
+
+        if (lookupError || !existing) {
+          // Only remove the object when the follow-up read definitively confirms
+          // that no metadata row committed. On an unavailable read, retain it
+          // so the same idempotent registration can be retried safely.
+          if (!lookupError) {
+            const { error: cleanupError } = await client!.storage
+              .from('product-files')
+              .remove([pending.objectPath]);
+            if (cleanupError) {
+              console.error('[kinvai-admin] orphaned upload cleanup failed:', cleanupError.message);
+            }
+            if (pendingUploadRef.current?.id === pending.id) pendingUploadRef.current = null;
+          }
+          throw registration.error || lookupError || new Error('File metadata could not be registered.');
+        }
+        if (
+          existing.storage_path !== pending.objectPath ||
+          existing.checksum_sha256 !== pending.checksum
+        ) {
+          throw new Error('The uploaded file ID is already associated with different content.');
+        }
+        registered = existing;
+      }
+
+      const { data: latestFiles, error: latestFilesError } = await client!
+        .from('product_files')
+        .select('*')
+        .eq('product_id', product.id)
+        .order('created_at', { ascending: false });
+
+      if (!latestFilesError && latestFiles) {
+        onFilesChange(latestFiles as ProductFile[]);
+      } else {
+        onFilesChange([
+          registered as ProductFile,
+          ...files.filter((item) => item.id !== pending.id),
+        ]);
+      }
+
+      pendingUploadRef.current = null;
+      toast({
+        title: isReplacing ? 'Active file version replaced' : 'Product file uploaded',
+        tone: 'success',
+      });
+      setUploadState('idle');
+      setSelectedFile(null);
+      setUploadError('');
+    } catch (error) {
+      setUploadState('error');
+      setUploadError(error instanceof Error ? error.message : 'File metadata could not be activated.');
+    }
+  };
+
   const chooseFile = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null;
     event.target.value = '';
     if (!file) return;
+
+    if (pendingUploadRef.current?.uploaded) {
+      toast({
+        title: 'Finish saving the uploaded file first',
+        description: 'Retry the file registration before selecting a different file.',
+        tone: 'error',
+      });
+      return;
+    }
+
     const schema = zFileSchema.safeParse({ name: file.name, size: file.size, type: file.type });
-    if (!schema.success) { toast({ title: 'File not accepted', description: schema.error.issues[0]?.message, tone: 'error' }); return; }
+    if (!schema.success) {
+      toast({ title: 'File not accepted', description: schema.error.issues[0]?.message, tone: 'error' });
+      return;
+    }
     if (uploadRef.current) void uploadRef.current.abort(true);
     pendingUploadRef.current = null;
     setSelectedFile(file);
     setProgress(0);
     setUploadError('');
+    setUploadState('idle');
   };
 
   const startUpload = async () => {
     if (!client || !selectedFile) return;
     const versionResult = z.object({ version: z.string().trim().min(1).max(40) }).safeParse({ version });
-    if (!versionResult.success) { setUploadError('Enter a version between 1 and 40 characters.'); setUploadState('error'); return; }
+    if (!versionResult.success) {
+      setUploadError('Enter a version between 1 and 40 characters.');
+      setUploadState('error');
+      return;
+    }
+
     const { data: sessionData, error: sessionError } = await client.auth.getSession();
-    if (sessionError || !sessionData.session?.access_token) { setUploadError('The sign-in session has expired. Sign in again.'); setUploadState('error'); return; }
+    if (sessionError || !sessionData.session?.access_token) {
+      setUploadError('The sign-in session has expired. Sign in again.');
+      setUploadState('error');
+      return;
+    }
+
     const cfg = getPublicConfig();
     const projectMatch = cfg.supabaseUrl.match(/^https:\/\/([a-z0-9-]+)\.supabase\.co/i);
     const endpoint = projectMatch
       ? 'https://' + projectMatch[1] + '.storage.supabase.co/storage/v1/upload/resumable'
       : cfg.supabaseUrl.replace(/\/+$/, '') + '/storage/v1/upload/resumable';
+
     if (!pendingUploadRef.current) {
       const checksumBuffer = await crypto.subtle.digest('SHA-256', await selectedFile.arrayBuffer());
-      const checksum = Array.from(new Uint8Array(checksumBuffer)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+      const checksum = Array.from(new Uint8Array(checksumBuffer))
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join('');
       const id = crypto.randomUUID();
-      const objectPath = 'products/' + product.id + '/' + id + '/' + selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '-');
-      pendingUploadRef.current = { id, objectPath, checksum };
+      const objectPath = 'products/' + product.id + '/' + id + '/' +
+        selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '-');
+      pendingUploadRef.current = { id, objectPath, checksum, uploaded: false };
     }
-    const { id: fileId, objectPath, checksum } = pendingUploadRef.current;
+
+    const pending = pendingUploadRef.current;
+    if (!pending) {
+      setUploadState('error');
+      setUploadError('The upload could not be prepared. Select the file again.');
+      return;
+    }
+    if (pending.uploaded) {
+      setUploadState('uploading');
+      setUploadError('');
+      await registerUploadedFile(selectedFile, versionResult.data.version, pending);
+      return;
+    }
+
+    const { id: fileId, objectPath } = pending;
     const { Upload } = await import('tus-js-client');
     const upload = new Upload(selectedFile, {
       endpoint,
@@ -581,39 +713,17 @@ function FilesManager({ product, files, loading, onFilesChange }: {
         setUploadState('error');
         setUploadError(error.message || 'The resumable upload failed. Retry it.');
       },
-      onProgress: (uploaded, total) => setProgress(total > 0 ? Math.round((uploaded / total) * 100) : 0),
+      onProgress: (uploaded, total) =>
+        setProgress(total > 0 ? Math.round((uploaded / total) * 100) : 0),
       onSuccess: async () => {
-        try {
-          const { data, error } = await client.from('product_files').insert({
-            id: fileId,
-            product_id: product.id,
-            storage_path: objectPath,
-            file_name: selectedFile.name,
-            mime_type: selectedFile.type || null,
-            size_bytes: selectedFile.size,
-            version: versionResult.data.version,
-            checksum_sha256: checksum,
-            is_active: true,
-          }).select('*').single();
-          if (error || !data) throw error || new Error('File metadata could not be saved.');
-          let priorFiles = files;
-          if (isReplacing) {
-            const { error: deactivateError } = await client.from('product_files').update({ is_active: false }).eq('product_id', product.id).neq('id', fileId);
-            if (deactivateError) {
-              toast({ title: 'New file uploaded, but previous versions remain active', description: deactivateError.message, tone: 'error' });
-            } else {
-              priorFiles = files.map((item) => ({ ...item, is_active: false }));
-            }
-          }
-          onFilesChange([data as ProductFile, ...priorFiles]);
-          pendingUploadRef.current = null;
-          if (!isReplacing) toast({ title: 'Product file uploaded', tone: 'success' });
-          setUploadState('idle');
-          setSelectedFile(null);
-        } catch (error) {
-          setUploadState('error');
-          setUploadError(error instanceof Error ? error.message : 'File metadata could not be saved.');
+        if (pendingUploadRef.current?.id === fileId) {
+          pendingUploadRef.current = { ...pending, uploaded: true };
         }
+        await registerUploadedFile(selectedFile, versionResult.data.version, {
+          id: fileId,
+          objectPath,
+          checksum: pending.checksum,
+        });
       },
     });
     uploadRef.current = upload;
@@ -624,7 +734,6 @@ function FilesManager({ product, files, loading, onFilesChange }: {
       upload.start();
     }).catch(() => upload.start());
   };
-
   const pauseUpload = async () => {
     await uploadRef.current?.abort(false);
     setUploadState('paused');

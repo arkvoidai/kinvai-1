@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { MemoryRateLimiter } from './rateLimit';
+import { MemoryRateLimiter, resolveRateLimitIdentity } from './rateLimit';
 
 test('MemoryRateLimiter allows requests up to maxRequests and blocks overflow', () => {
   const limiter = new MemoryRateLimiter({ windowMs: 1000, maxRequests: 3 });
@@ -37,4 +37,18 @@ test('MemoryRateLimiter isolates keys independently', () => {
   assert.equal(limiter.check('ip-1', t0).allowed, true);
   assert.equal(limiter.check('ip-1', t0 + 10).allowed, false);
   assert.equal(limiter.check('ip-2', t0 + 10).allowed, true);
+});
+
+
+test('rate-limit IP resolution ignores caller-supplied forwarded headers', async () => {
+  const { resolveRateLimitIp } = await import('./rateLimit');
+  assert.equal(resolveRateLimitIp('198.51.100.23', '10.0.0.4'), '198.51.100.23');
+  assert.equal(resolveRateLimitIp(undefined, '10.0.0.4'), '10.0.0.4');
+  assert.equal(resolveRateLimitIp(undefined, undefined), 'unknown');
+});
+
+
+test('custom authenticated rate-limit identity takes precedence over the client IP', () => {
+  assert.equal(resolveRateLimitIdentity('198.51.100.23', '10.0.0.4', 'admin:auth-user-1'), 'admin:auth-user-1');
+  assert.equal(resolveRateLimitIdentity('198.51.100.23', '10.0.0.4', ''), '198.51.100.23');
 });

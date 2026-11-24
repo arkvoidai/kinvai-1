@@ -3,8 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { verifyPayPalWebhook } from './paymentProviders';
 import {
   decimalAmountToCents,
+  extractPayPalCaptureIdFromRefundResource,
   paymentMatchesOrder,
   processWebhookOnce,
+  processWebhookWithLease,
   verifyPayPalWebhookSignature,
   verifyRazorpayCheckoutSignature,
   verifyRazorpayWebhookSignature,
@@ -253,5 +255,76 @@ describe('payment amount and webhook idempotency', () => {
 
     expect(outcome).toBe('processed');
     expect(calls).toEqual(['record', 'handle']);
+  });
+});
+
+
+describe('retryable webhook processing leases', () => {
+  it('acknowledges completed deliveries without re-running the handler', async () => {
+    const claim = vi.fn(async () => null);
+    const finish = vi.fn(async () => undefined);
+    const handle = vi.fn(async () => undefined);
+    const result = await processWebhookWithLease(claim, finish, handle);
+    expect(result).toBe('duplicate');
+    expect(claim).toHaveBeenCalledOnce();
+    expect(finish).not.toHaveBeenCalled();
+    expect(handle).not.toHaveBeenCalled();
+  });
+
+  it('marks a successful delivery processed only after the handler succeeds', async () => {
+    const calls: string[] = [];
+    const result = await processWebhookWithLease(
+      async () => { calls.push('claim'); return 'lease-1'; },
+      async (_token, success) => { calls.push(success ? 'finish-success' : 'finish-failure'); },
+      async () => { calls.push('handle'); }
+    );
+    expect(result).toBe('processed');
+    expect(calls).toEqual(['claim', 'handle', 'finish-success']);
+  });
+
+  it('releases a failed delivery for provider retry and rethrows the handler error', async () => {
+    const finish = vi.fn(async (_token: string, success: boolean, message?: string) => {
+      expect(success).toBe(false);
+      expect(message).toBe('temporary_database_failure');
+    });
+    const handlerError = new Error('temporary_database_failure');
+    await expect(
+      processWebhookWithLease(
+        async () => 'lease-2',
+        finish,
+        async () => { throw handlerError; }
+      )
+    ).rejects.toBe(handlerError);
+    expect(finish).toHaveBeenCalledOnce();
+  });
+});
+
+
+describe('PayPal refund resource references', () => {
+  it('extracts the capture ID from the refund HATEOAS up link', () => {
+    expect(extractPayPalCaptureIdFromRefundResource({
+      id: '1JU08902781691411',
+      links: [
+        { rel: 'self', href: 'https://api.paypal.com/v2/payments/refunds/1JU08902781691411' },
+        { rel: 'up', href: 'https://api.paypal.com/v2/payments/captures/2GG279541U471931P' },
+      ],
+    })).toBe('2GG279541U471931P');
+  });
+
+  it('prefers the explicit related capture ID when present', () => {
+    expect(extractPayPalCaptureIdFromRefundResource({
+      supplementary_data: { related_ids: { capture_id: '8VN12345AB678901C' } },
+      links: [{ rel: 'up', href: 'https://api.paypal.com/v2/payments/captures/DIFFERENT12345' }],
+    })).toBe('8VN12345AB678901C');
+  });
+
+  it('rejects arbitrary hosts, malformed URLs and unexpected paths', () => {
+    expect(extractPayPalCaptureIdFromRefundResource({
+      links: [{ rel: 'up', href: 'https://evil.example/v2/payments/captures/2GG279541U471931P' }],
+    })).toBeNull();
+    expect(extractPayPalCaptureIdFromRefundResource({
+      links: [{ rel: 'up', href: 'not-a-url' }],
+    })).toBeNull();
+    expect(extractPayPalCaptureIdFromRefundResource({})).toBeNull();
   });
 });

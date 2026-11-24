@@ -208,9 +208,92 @@ export async function storeProductImage(
 ): Promise<ProductMedia> {
   const cleanAlt = alt.trim();
   if (!cleanAlt) throw new Error('Add descriptive alt text before saving this image.');
+
   const processed = await processImage(image);
   const mediaId = crypto.randomUUID();
   const basePath = buildProductMediaBasePath(product.id, mediaId);
+  const storage = client.storage.from('product-media');
+  const uploadedPaths: string[] = [];
+  let preserveUploadedAssets = false;
+
+  try {
+    for (const item of processed.variants) {
+      const objectPath = getProductMediaVariantPath(basePath, item.variant);
+      const { error } = await storage.upload(objectPath, item.blob, {
+        contentType: 'image/webp',
+        cacheControl: '31536000',
+        upsert: false,
+      });
+      if (error) throw error;
+      uploadedPaths.push(objectPath);
+    }
+
+    const registrationInput = {
+      p_product_id: product.id,
+      p_media_id: mediaId,
+      p_storage_path: basePath,
+      p_alt: cleanAlt,
+      p_width: processed.width,
+      p_height: processed.height,
+      p_source: source,
+      p_set_as_cover: setAsCover,
+    };
+
+    // One idempotent Postgres transaction inserts the media metadata and,
+    // when requested, updates the product's cover pointer and previous cover.
+    let registration = await client.rpc('register_product_media', registrationInput);
+    if (registration.error) {
+      registration = await client.rpc('register_product_media', registrationInput);
+    }
+
+    let registered = Array.isArray(registration.data)
+      ? registration.data[0]
+      : registration.data;
+
+    if (registration.error || !registered || registered.id !== mediaId) {
+      const { data: existing, error: lookupError } = await client
+        .from('product_media')
+        .select('*')
+        .eq('id', mediaId)
+        .eq('product_id', product.id)
+        .maybeSingle();
+
+      if (lookupError) {
+        // Do not remove objects if the registration's commit outcome cannot be read.
+        preserveUploadedAssets = true;
+        throw registration.error || lookupError;
+      }
+      if (!existing || existing.storage_path !== basePath || existing.alt !== cleanAlt) {
+        throw registration.error || new Error('Product image metadata could not be registered.');
+      }
+      registered = existing;
+    }
+
+    return registered as ProductMedia;
+  } catch (error) {
+    if (uploadedPaths.length && !preserveUploadedAssets) {
+      const { error: cleanupError } = await storage.remove(uploadedPaths);
+      if (cleanupError) {
+        console.error('[kinvai-admin] failed to clean up incomplete product media upload:', cleanupError.message);
+      }
+    } else if (preserveUploadedAssets) {
+      console.error('[kinvai-admin] product media registration outcome is unknown; uploaded variants were retained for safe retry.');
+    }
+    throw error;
+  }
+}
+
+export async function uploadCollectionImage(
+  client: SupabaseClient,
+  collectionId: string,
+  image: File
+): Promise<string> {
+  const validation = ImageUploadSchema.safeParse(image);
+  if (!validation.success) throw new Error(validation.error.issues[0]?.message || 'Choose a supported image.');
+
+  const processed = await processImage(image);
+  const mediaId = crypto.randomUUID();
+  const basePath = 'collections/' + collectionId + '/' + mediaId;
   const storage = client.storage.from('product-media');
   const uploadedPaths: string[] = [];
 
@@ -225,76 +308,31 @@ export async function storeProductImage(
       if (error) throw error;
       uploadedPaths.push(objectPath);
     }
-
-    if (setAsCover) {
-      const { error: clearError } = await client
-        .from('product_media')
-        .update({ kind: 'gallery' })
-        .eq('product_id', product.id)
-        .eq('kind', 'cover');
-      if (clearError) throw clearError;
-    }
-
-    const { data: latestMedia, error: sortError } = await client
-      .from('product_media')
-      .select('sort_order')
-      .eq('product_id', product.id)
-      .order('sort_order', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (sortError) throw sortError;
-    const nextSortOrder = (latestMedia?.sort_order ?? -1) + 1;
-
-    const { data, error: insertError } = await client
-      .from('product_media')
-      .insert({
-        id: mediaId,
-        product_id: product.id,
-        storage_path: basePath,
-        kind: setAsCover ? 'cover' : 'gallery',
-        alt: cleanAlt,
-        width: processed.width,
-        height: processed.height,
-        source,
-        sort_order: nextSortOrder,
-      })
-      .select('*')
-      .single();
-    if (insertError || !data) throw insertError || new Error('Image metadata was not saved.');
-
-    if (setAsCover) {
-      const { error: coverError } = await client
-        .from('products')
-        .update({ cover_path: basePath })
-        .eq('id', product.id);
-      if (coverError) throw coverError;
-    }
-    return data as ProductMedia;
+    return basePath;
   } catch (error) {
-    if (uploadedPaths.length) await storage.remove(uploadedPaths).catch(() => undefined);
+    if (uploadedPaths.length) {
+      const { error: cleanupError } = await storage.remove(uploadedPaths);
+      if (cleanupError) {
+        console.error('[kinvai-admin] failed to clean up incomplete collection image upload:', cleanupError.message);
+      }
+    }
     throw error;
   }
 }
 
-export async function uploadCollectionImage(
+
+
+/** Removes all responsive variants for a collection artwork base path. */
+export async function removeCollectionImage(
   client: SupabaseClient,
-  collectionId: string,
-  image: File
-): Promise<string> {
-  const validation = ImageUploadSchema.safeParse(image);
-  if (!validation.success) throw new Error(validation.error.issues[0]?.message || 'Choose a supported image.');
-  const processed = await processImage(image);
-  const mediaId = crypto.randomUUID();
-  const basePath = 'collections/' + collectionId + '/' + mediaId;
-  const storage = client.storage.from('product-media');
-  for (const item of processed.variants) {
-    const path = getProductMediaVariantPath(basePath, item.variant);
-    const { error } = await storage.upload(path, item.blob, {
-      contentType: 'image/webp',
-      cacheControl: '31536000',
-      upsert: false,
-    });
-    if (error) throw error;
+  basePath: string
+): Promise<{ error: string | null }> {
+  if (!basePath.startsWith('collections/')) {
+    return { error: 'The collection image path is invalid.' };
   }
-  return basePath;
+  const paths = [480, 960, 1600].map((width) =>
+    getProductMediaVariantPath(basePath, width as 480 | 960 | 1600)
+  );
+  const { error } = await client.storage.from('product-media').remove(paths);
+  return { error: error?.message || null };
 }

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { createHash } from 'node:crypto';
 import { getServerSecrets } from '../lib/config.ts';
 import { getSupabaseAdmin } from '../services/supabaseAdmin.ts';
-import { verifyRazorpayWebhookSignature, decimalAmountToCents, processWebhookOnce } from '../services/paymentSecurity.ts';
+import { verifyRazorpayWebhookSignature, decimalAmountToCents, processWebhookWithLease, extractPayPalCaptureIdFromRefundResource } from '../services/paymentSecurity.ts';
 import { verifyPayPalWebhook } from '../services/paymentProviders.ts';
 
 export const webhooksRouter = Router();
@@ -63,6 +63,73 @@ async function findOrderByProviderPaymentId(
   return error || !data ? null : (data as OrderRecord);
 }
 
+async function processProviderEvent(
+  provider: 'razorpay' | 'paypal',
+  eventId: string,
+  eventType: string,
+  payload: Record<string, unknown>,
+  handleEvent: () => Promise<void>
+): Promise<'processed' | 'duplicate'> {
+  const admin = getSupabaseAdmin();
+  if (!admin) throw new Error('supabase_not_configured');
+
+  return processWebhookWithLease(
+    async () => {
+      const { data, error } = await admin.rpc('claim_payment_event', {
+        p_provider: provider,
+        p_event_id: eventId,
+        p_event_type: eventType,
+        p_payload: payload,
+      });
+      if (error) throw new Error('webhook_event_claim_failed');
+
+      const claim = data && typeof data === 'object'
+        ? data as { status?: unknown; lock_token?: unknown }
+        : null;
+      if (claim?.status === 'processed') return null;
+      if (claim?.status === 'busy') throw new Error('webhook_event_processing_in_progress');
+      if (claim?.status !== 'claimed' || typeof claim.lock_token !== 'string') {
+        throw new Error('webhook_event_claim_invalid');
+      }
+      return claim.lock_token;
+    },
+    async (claimToken, success, errorMessage) => {
+      const { data, error } = await admin.rpc('finish_payment_event', {
+        p_provider: provider,
+        p_event_id: eventId,
+        p_lock_token: claimToken,
+        p_success: success,
+        p_error: errorMessage ?? null,
+      });
+      if (error || data !== true) throw new Error('webhook_event_finish_failed');
+    },
+    handleEvent
+  );
+}
+
+async function findPayPalOrder(
+  providerOrderId: string,
+  appOrderId: string
+): Promise<OrderRecord | null> {
+  if (providerOrderId) {
+    const providerOrder = await findOrderByProviderOrderId(providerOrderId, 'paypal');
+    if (providerOrder) return providerOrder;
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(appOrderId)) {
+    return null;
+  }
+
+  const admin = getSupabaseAdmin();
+  if (!admin) return null;
+  const { data, error } = await admin
+    .from('orders')
+    .select('id, order_number, status, total_cents, currency, refunded_cents, provider_payment_id')
+    .eq('id', appOrderId)
+    .eq('provider', 'paypal')
+    .maybeSingle();
+  return error || !data ? null : (data as OrderRecord);
+}
+
 function safeRazorpayPayload(event: Record<string, unknown>): Record<string, unknown> {
   const payload = event.payload as Record<string, unknown> | undefined;
   const payment = payload?.payment as Record<string, unknown> | undefined;
@@ -112,8 +179,7 @@ async function handleRazorpayEvent(event: Record<string, unknown>): Promise<void
       ? await findOrderByProviderOrderId(providerOrderId, 'razorpay')
       : null;
     if (!order || !paymentId) {
-      console.warn(JSON.stringify({ event: 'razorpay_webhook_order_missing', type: eventType }));
-      return;
+      throw new Error('razorpay_webhook_order_missing');
     }
 
     const amount = Number(paymentEntity.amount);
@@ -124,18 +190,19 @@ async function handleRazorpayEvent(event: Record<string, unknown>): Promise<void
       amount !== Number(order.total_cents) ||
       currency.toUpperCase() !== order.currency
     ) {
-      console.error(JSON.stringify({ event: 'razorpay_webhook_payment_mismatch', orderId: order.id }));
-      return;
+      throw new Error('razorpay_webhook_payment_mismatch');
     }
 
-    const { error } = await admin.rpc('mark_order_paid', {
+    const { data: paidStatus, error } = await admin.rpc('mark_order_paid', {
       p_order_id: order.id,
       p_provider: 'razorpay',
       p_provider_payment_id: paymentId,
       p_amount_cents: amount,
       p_currency: currency,
     });
-    if (error) throw new Error('razorpay_mark_paid_failed');
+    if (error || !['paid', 'already_paid'].includes(String(paidStatus))) {
+      throw new Error('razorpay_mark_paid_failed');
+    }
     return;
   }
 
@@ -144,7 +211,7 @@ async function handleRazorpayEvent(event: Record<string, unknown>): Promise<void
     const order = providerOrderId
       ? await findOrderByProviderOrderId(providerOrderId, 'razorpay')
       : null;
-    if (!order) return;
+    if (!order) throw new Error('webhook_order_missing');
     const { error } = await admin.rpc('mark_order_failed', {
       p_order_id: order.id,
       p_reason: 'razorpay_payment_failed',
@@ -155,24 +222,21 @@ async function handleRazorpayEvent(event: Record<string, unknown>): Promise<void
 
   if (eventType === 'refund.processed' && refundEntity) {
     const paymentId = typeof refundEntity.payment_id === 'string' ? refundEntity.payment_id : '';
+    const refundId = typeof refundEntity.id === 'string' ? refundEntity.id : '';
     const order = paymentId ? await findOrderByProviderPaymentId(paymentId, 'razorpay') : null;
-    if (!order) return;
+    if (!order || !refundId) throw new Error('razorpay_refund_order_or_id_missing');
 
     const refundAmount = Number(refundEntity.amount);
     if (!Number.isSafeInteger(refundAmount) || refundAmount <= 0) {
-      console.warn(JSON.stringify({ event: 'razorpay_refund_amount_invalid', orderId: order.id }));
-      return;
+      throw new Error('razorpay_refund_amount_invalid');
     }
-
-    const totalRefunded = Math.min(
-      Number(order.total_cents),
-      Number(order.refunded_cents || 0) + refundAmount
-    );
-    const { error } = await admin.rpc('mark_order_refunded', {
+    const { error } = await admin.rpc('apply_order_refund', {
       p_order_id: order.id,
-      p_refunded_cents: totalRefunded,
+      p_provider: 'razorpay',
+      p_provider_refund_id: refundId,
+      p_refund_cents: refundAmount,
     });
-    if (error) throw new Error('razorpay_mark_refunded_failed');
+    if (error) throw new Error('razorpay_apply_refund_failed');
   }
 }
 
@@ -206,16 +270,18 @@ async function handlePayPalEvent(event: Record<string, unknown>): Promise<void> 
 
   const eventType = typeof event.event_type === 'string' ? event.event_type : '';
   const resource = event.resource as Record<string, unknown> | undefined;
-  if (!resource) return;
+  if (!resource) {
+    if (['PAYMENT.CAPTURE.COMPLETED', 'PAYMENT.CAPTURE.DENIED', 'PAYMENT.CAPTURE.DECLINED', 'PAYMENT.CAPTURE.REFUNDED'].includes(eventType)) {
+      throw new Error('paypal_webhook_resource_missing');
+    }
+    return;
+  }
 
   const supplementary = resource.supplementary_data as Record<string, unknown> | undefined;
   const related = supplementary?.related_ids as Record<string, unknown> | undefined;
-  const paypalOrderId =
-    typeof related?.order_id === 'string'
-      ? related.order_id
-      : typeof resource.custom_id === 'string'
-        ? resource.custom_id
-        : '';
+  const paypalProviderOrderId =
+    typeof related?.order_id === 'string' ? related.order_id : '';
+  const appOrderId = typeof resource.custom_id === 'string' ? resource.custom_id : '';
   const resourceAmount = resource.amount as Record<string, unknown> | undefined;
   const amountCents =
     typeof resourceAmount?.value === 'string' || typeof resourceAmount?.value === 'number'
@@ -225,36 +291,35 @@ async function handlePayPalEvent(event: Record<string, unknown>): Promise<void> 
     typeof resourceAmount?.currency_code === 'string' ? resourceAmount.currency_code : '';
 
   if (eventType === 'PAYMENT.CAPTURE.COMPLETED') {
-    const order = paypalOrderId
-      ? await findOrderByProviderOrderId(paypalOrderId, 'paypal')
-      : null;
+    const order = await findPayPalOrder(paypalProviderOrderId, appOrderId);
     const paymentId = typeof resource.id === 'string' ? resource.id : '';
-    if (!order || !paymentId || amountCents === null) return;
+    if (!order || !paymentId || amountCents === null) {
+      throw new Error('paypal_webhook_order_or_amount_missing');
+    }
     if (
       resource.status !== 'COMPLETED' ||
       amountCents !== Number(order.total_cents) ||
       currency.toUpperCase() !== order.currency
     ) {
-      console.error(JSON.stringify({ event: 'paypal_webhook_payment_mismatch', orderId: order.id }));
-      return;
+      throw new Error('paypal_webhook_payment_mismatch');
     }
 
-    const { error } = await admin.rpc('mark_order_paid', {
+    const { data: paidStatus, error } = await admin.rpc('mark_order_paid', {
       p_order_id: order.id,
       p_provider: 'paypal',
       p_provider_payment_id: paymentId,
       p_amount_cents: amountCents,
       p_currency: currency,
     });
-    if (error) throw new Error('paypal_mark_paid_failed');
+    if (error || !['paid', 'already_paid'].includes(String(paidStatus))) {
+      throw new Error('paypal_mark_paid_failed');
+    }
     return;
   }
 
-  if (eventType === 'PAYMENT.CAPTURE.DENIED') {
-    const order = paypalOrderId
-      ? await findOrderByProviderOrderId(paypalOrderId, 'paypal')
-      : null;
-    if (!order) return;
+  if (eventType === 'PAYMENT.CAPTURE.DENIED' || eventType === 'PAYMENT.CAPTURE.DECLINED') {
+    const order = await findPayPalOrder(paypalProviderOrderId, appOrderId);
+    if (!order) throw new Error('webhook_order_missing');
     const { error } = await admin.rpc('mark_order_failed', {
       p_order_id: order.id,
       p_reason: 'paypal_capture_denied',
@@ -264,26 +329,22 @@ async function handlePayPalEvent(event: Record<string, unknown>): Promise<void> 
   }
 
   if (eventType === 'PAYMENT.CAPTURE.REFUNDED') {
-    const captureId =
-      typeof related?.capture_id === 'string'
-        ? related.capture_id
-        : typeof resource.id === 'string'
-          ? resource.id
-          : '';
+    const captureId = extractPayPalCaptureIdFromRefundResource(resource) || '';
+    const refundId = typeof resource.id === 'string' ? resource.id : '';
     const order =
       (captureId ? await findOrderByProviderPaymentId(captureId, 'paypal') : null) ||
-      (paypalOrderId ? await findOrderByProviderOrderId(paypalOrderId, 'paypal') : null);
-    if (!order || amountCents === null || amountCents <= 0) return;
+      await findPayPalOrder(paypalProviderOrderId, appOrderId);
+    if (!order || !refundId || amountCents === null || amountCents <= 0) {
+      throw new Error('paypal_refund_order_or_amount_invalid');
+    }
 
-    const totalRefunded = Math.min(
-      Number(order.total_cents),
-      Number(order.refunded_cents || 0) + amountCents
-    );
-    const { error } = await admin.rpc('mark_order_refunded', {
+    const { error } = await admin.rpc('apply_order_refund', {
       p_order_id: order.id,
-      p_refunded_cents: totalRefunded,
+      p_provider: 'paypal',
+      p_provider_refund_id: refundId,
+      p_refund_cents: amountCents,
     });
-    if (error) throw new Error('paypal_mark_refunded_failed');
+    if (error) throw new Error('paypal_apply_refund_failed');
   }
 }
 
@@ -314,29 +375,16 @@ webhooksRouter.post('/razorpay', async (req, res) => {
     createHash('sha256').update(raw.raw).digest('hex');
 
   try {
-    const outcome = await processWebhookOnce(
-      async () => {
-        const { data, error } = await admin.rpc('record_payment_event', {
-          p_provider: 'razorpay',
-          p_event_id: eventId,
-          p_event_type: eventType,
-          p_payload: safeRazorpayPayload(raw.parsed),
-        });
-        if (error) throw new Error('razorpay_event_record_failed');
-        return data === true;
-      },
+    const outcome = await processProviderEvent(
+      'razorpay',
+      eventId,
+      eventType,
+      safeRazorpayPayload(raw.parsed),
       async () => handleRazorpayEvent(raw.parsed)
     );
 
     res.status(200).json({ received: true, duplicate: outcome === 'duplicate' });
   } catch {
-    // The event was recorded before applying it. Remove only this failed event so the
-    // provider retry can safely attempt processing again; successful deliveries remain idempotent.
-    await admin
-      .from('payment_events')
-      .delete()
-      .eq('provider', 'razorpay')
-      .eq('event_id', eventId);
     console.error(JSON.stringify({
       event: 'razorpay_webhook_processing_failed',
       type: eventType,
@@ -397,28 +445,16 @@ webhooksRouter.post('/paypal', async (req, res) => {
   }
 
   try {
-    const outcome = await processWebhookOnce(
-      async () => {
-        const { data, error } = await admin.rpc('record_payment_event', {
-          p_provider: 'paypal',
-          p_event_id: eventId,
-          p_event_type: eventType,
-          p_payload: safePayPalPayload(raw.parsed),
-        });
-        if (error) throw new Error('paypal_event_record_failed');
-        return data === true;
-      },
+    const outcome = await processProviderEvent(
+      'paypal',
+      eventId,
+      eventType,
+      safePayPalPayload(raw.parsed),
       async () => handlePayPalEvent(raw.parsed)
     );
 
     res.status(200).json({ received: true, duplicate: outcome === 'duplicate' });
   } catch {
-    // Permit provider retry only when handling failed after the event was first recorded.
-    await admin
-      .from('payment_events')
-      .delete()
-      .eq('provider', 'paypal')
-      .eq('event_id', eventId);
     console.error(JSON.stringify({
       event: 'paypal_webhook_processing_failed',
       type: eventType,

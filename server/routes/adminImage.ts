@@ -1,6 +1,8 @@
 import express, { Router } from 'express';
 import { z } from 'zod';
-import { MemoryRateLimiter } from '../lib/rateLimit.ts';
+import { createRateLimitMiddleware } from '../lib/rateLimit.ts';
+import { assertSameOrigin } from '../lib/requestSecurity.ts';
+import { getSupabaseAdmin } from '../services/supabaseAdmin.ts';
 import { requireAdmin } from '../middleware/requireAdmin.ts';
 import { GeminiServiceError, generateProductCoverImage } from '../services/gemini.ts';
 
@@ -9,35 +11,28 @@ export const adminImageRouter = Router();
 // Allow larger JSON bodies on this route specifically for optional referenceImageBase64 edits
 adminImageRouter.use(express.json({ limit: '10mb' }));
 
-// Per-admin rate limiter: max 6 image generations per minute
-const perAdminImageLimiter = new MemoryRateLimiter({
+// Shared database-backed limit, keyed to the verified admin identity across instances.
+const imageGenerationLimiter = createRateLimitMiddleware({
   windowMs: 60_000,
   maxRequests: 6,
+  keyPrefix: 'admin-image',
+  keyGenerator: (_req, res) => {
+    const adminUserId = res.locals.adminUserId;
+    return typeof adminUserId === 'string' ? `admin:${adminUserId}` : 'admin:unknown';
+  },
 });
 
 const GenerateImageBodySchema = z.object({
-  productId: z.string().trim().min(1, 'productId is required.').max(128),
+  productId: z.string().uuid('A valid product id is required.'),
   prompt: z.string().trim().min(10, 'Prompt must be at least 10 characters.').max(3000),
   model: z.string().trim().min(3).max(120).optional(),
   referenceImageBase64: z.string().trim().min(16).max(8_500_000).optional(),
   edit: z.boolean().optional().default(false),
 });
 
-adminImageRouter.post('/generate', requireAdmin, async (req, res) => {
-  const adminUserId = typeof res.locals.adminUserId === 'string' ? res.locals.adminUserId : 'admin';
-
-  const rateResult = perAdminImageLimiter.check(`admin-image:${adminUserId}`);
-  res.setHeader('X-RateLimit-Limit', '6');
-  res.setHeader('X-RateLimit-Remaining', String(rateResult.remaining));
-  res.setHeader('X-RateLimit-Reset', String(Math.ceil(rateResult.resetAt / 1000)));
-
-  if (!rateResult.allowed) {
-    res.status(429).json({
-      error: 'Rate limit exceeded: maximum 6 image generations per minute per admin.',
-      retryAfterSeconds: Math.max(1, Math.ceil((rateResult.resetAt - Date.now()) / 1000)),
-    });
-    return;
-  }
+adminImageRouter.post('/generate', requireAdmin, imageGenerationLimiter, async (req, res) => {
+  res.setHeader('Cache-Control', 'private, no-store');
+  if (!assertSameOrigin(req, res)) return;
 
   const parsed = GenerateImageBodySchema.safeParse(req.body);
   if (!parsed.success) {
@@ -51,7 +46,28 @@ adminImageRouter.post('/generate', requireAdmin, async (req, res) => {
     return;
   }
 
+  const admin = getSupabaseAdmin();
+  if (!admin) {
+    res.status(503).json({ error: 'The catalogue service is not configured.' });
+    return;
+  }
+
   try {
+    const { data: product, error: productError } = await admin
+      .from('products')
+      .select('id')
+      .eq('id', parsed.data.productId)
+      .maybeSingle();
+
+    if (productError) {
+      res.status(503).json({ error: 'The product could not be checked. Please retry.' });
+      return;
+    }
+    if (!product) {
+      res.status(404).json({ error: 'The product no longer exists.' });
+      return;
+    }
+
     const result = await generateProductCoverImage({
       prompt: parsed.data.prompt,
       model: parsed.data.model,
@@ -73,6 +89,11 @@ adminImageRouter.post('/generate', requireAdmin, async (req, res) => {
       return;
     }
 
+    console.error(JSON.stringify({
+      event: 'admin_image_generation_failed',
+      productId: parsed.data.productId,
+      reason: err instanceof Error ? err.name : 'unknown',
+    }));
     res.status(500).json({
       error: 'Unable to generate image right now. Please try again.',
     });
