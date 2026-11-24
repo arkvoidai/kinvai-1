@@ -80,9 +80,9 @@ function baseSeo(pathname: string, siteUrl: string): SeoResult {
     '/how-it-works': { title: 'How it works — Kinvai', description: 'Choose a digital product, complete secure checkout and access the file from the Kinvai library.' },
     '/support': { title: 'Support — Kinvai', description: 'Find answers about orders, downloads, file formats and licences, or contact Arkvoid Inc.' },
     '/licence': { title: 'Licence — Kinvai', description: 'Personal and commercial use rights for downloadable Kinvai files.' },
-    '/legal/privacy': { title: 'Privacy policy — Kinvai', description: 'Draft privacy information for Kinvai accounts, digital orders, downloads and essential storage.' },
-    '/legal/terms': { title: 'Terms of service — Kinvai', description: 'Draft terms for access to Kinvai and purchases of downloadable digital products.' },
-    '/legal/refunds': { title: 'Refund policy — Kinvai', description: 'Draft refund approach for digital purchases, defective files and payment issues.' },
+    '/legal/privacy': { title: 'Privacy policy — Kinvai', description: 'How Kinvai uses account, order, download and support information.' },
+    '/legal/terms': { title: 'Terms of service — Kinvai', description: 'Terms for using Kinvai and purchasing downloadable digital products.' },
+    '/legal/refunds': { title: 'Refund policy — Kinvai', description: 'How Kinvai reviews digital purchase, payment and file-delivery refund requests.' },
     '/search': { title: 'Search the catalogue — Kinvai', description: 'Search downloadable systems, templates, spreadsheets and creative files at Kinvai.' },
   };
   const fallback = defaults[pathname] || { title: 'Kinvai — Ready-made digital systems', description: 'Downloadable digital products by Arkvoid Inc.' };
@@ -100,7 +100,7 @@ async function buildSeo(pathname: string): Promise<SeoResult> {
 
   if (routePath === '/') {
     result.structuredData = [
-      { '@context': 'https://schema.org', '@type': 'Organization', name: 'Kinvai', legalName: 'Arkvoid Inc.', url: siteUrl, email: 'heyarkvoid@gmail.com' },
+      { '@context': 'https://schema.org', '@type': 'Organization', name: 'Kinvai — Arkvoid Inc.', url: siteUrl, email: 'heyarkvoid@gmail.com' },
       { '@context': 'https://schema.org', '@type': 'WebSite', name: 'Kinvai', url: siteUrl, potentialAction: { '@type': 'SearchAction', target: siteUrl + '/search?q={search_term_string}', 'query-input': 'required name=search_term_string' } },
     ];
   }

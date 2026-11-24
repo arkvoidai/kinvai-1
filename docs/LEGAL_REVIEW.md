@@ -1,15 +1,15 @@
-# Legal review required before launch
+# Customer policy copy and legal-review note
 
-**Status: DRAFT — NOT APPROVED FOR PUBLICATION**
+**Status: Customer-facing policy copy completed; no lawyer approval is claimed.**
 
-A qualified lawyer familiar with the laws that apply to Arkvoid Inc. and the customers Kinvai serves must review all three legal drafts before production launch:
+The public pages now contain readable operating policies for:
 
-- `/legal/privacy` — Google sign-in data, Supabase account/session handling, Razorpay and PayPal processing, necessary browser storage, retention, deletion requests and international transfers.
-- `/legal/terms` — seller identity and jurisdiction, consumer eligibility, digital delivery, taxes, warranties, liability, disputes and governing law.
-- `/legal/refunds` — digital-content consent, withdrawal rights, defective or inaccessible files, duplicate payments, partial downloads, payment-provider processing and refund timelines.
+- `/legal/privacy` — account sign-in, profile and order information, download-security logs, contact and newsletter submissions, browser storage, service providers, retention principles and privacy requests.
+- `/legal/terms` — store identity as the public-facing name Arkvoid Inc., account and purchase rules, product descriptions, download access, licence, update expectations, refunds and liability subject to mandatory law.
+- `/legal/refunds` — a 14-calendar-day store request period, delivery/payment issue review, change-of-mind treatment, original-provider refund handling and an express preservation of longer mandatory rights.
 
-The source pages contain `[OWNER TO COMPLETE: ...]` markers for facts and policy choices that are not established by the repository. The production build intentionally fails while any such marker remains under `src/`. Do not remove a marker by guessing. The owner must supply the missing facts, then have the lawyer review the final wording.
+The repository was inspected for the described application flows. The policy copy deliberately avoids inventing a registered office, incorporation jurisdiction, company number, fixed record-retention schedule, payment-provider processing time, or a claim that counsel has approved the wording. The public-facing name Arkvoid Inc. is used as instructed by the owner; it is not represented here as proof of incorporation or registration.
 
-The About and How it works pages also contain `// OWNER_CONFIRM` comments beside claims about product preparation, checking and delivery. The owner must verify each claim against the actual operating process before launch.
+These pages are operational customer information, not legal advice or a legal opinion. Laws can vary by customer location and business location. The owner should obtain jurisdiction-specific legal review as the business expands or before relying on these terms in a dispute. Mandatory consumer and privacy rights are not waived by the wording.
 
-No legal advice is provided by these drafts. Do not treat a source-code build, payment-provider configuration or this review checklist as legal approval.
+The production build gate remains enabled. It now checks for unresolved owner markers and should pass when no such markers remain; it does not certify legal compliance or replace external review.
