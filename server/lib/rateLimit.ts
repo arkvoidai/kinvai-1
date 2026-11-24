@@ -78,11 +78,9 @@ export function createRateLimitMiddleware(options: RateLimitOptions) {
   const prefix = options.keyPrefix || 'rl';
 
   return function rateLimitMiddleware(req: Request, res: Response, next: NextFunction): void {
-    const forwarded = req.headers['x-forwarded-for'];
-    const ip =
-      typeof forwarded === 'string'
-        ? forwarded.split(',')[0]?.trim() || req.ip || 'unknown'
-        : req.ip || 'unknown';
+    // Express resolves req.ip through the configured trusted proxy chain.
+    // Never trust a caller-supplied X-Forwarded-For value directly: it can be spoofed.
+    const ip = req.ip || 'unknown';
     const result = limiter.check(`${prefix}:${ip}`);
 
     res.setHeader('X-RateLimit-Limit', String(options.maxRequests));
