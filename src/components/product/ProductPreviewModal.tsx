@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, typ
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import {
-  AppWindow, ArrowRight, Check, ChevronLeft, ChevronRight, Code2, Eye, File,
+  AppWindow, ArrowRight, Check, ChevronLeft, ChevronRight, Code2, File,
   FileSpreadsheet, FileText, Folder, X, ZoomIn,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -78,6 +78,7 @@ export function ProductPreviewModal(props: ProductPreviewModalProps) {
     setActiveTab(initialTab);
     setActiveIndex(initialIndex);
     setZoomed(false);
+    setSelectedEntry(null);
     previousFocus.current = document.activeElement as HTMLElement | null;
     const oldOverflow = document.body.style.overflow;
     const oldPadding = document.body.style.paddingRight;
