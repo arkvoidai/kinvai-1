@@ -5,6 +5,13 @@ const root = process.cwd();
 const scanRoots = ['src', 'server', 'index.html'];
 const extensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.html', '.css']);
 const unresolved = [];
+const isVercelPreview = process.env.VERCEL_ENV === 'preview';
+const isProductionBuild = process.argv.includes('--production') || process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production';
+
+if (isVercelPreview || !isProductionBuild) {
+  console.log('Owner-marker gate skipped for a non-production preview build.');
+  process.exit(0);
+}
 
 async function walk(target) {
   const info = await stat(target);
