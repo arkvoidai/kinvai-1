@@ -75,7 +75,7 @@ export function MobileStickyBuyBar({
                 variant="primary"
                 inverted
                 size="md"
-                to="/account"
+                to="/account?tab=library"
                 icon={<Download size={16} strokeWidth={1.75} aria-hidden="true" />}
                 className="min-h-[44px] px-4 text-xs sm:text-sm"
               >

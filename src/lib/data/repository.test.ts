@@ -80,3 +80,67 @@ test('Porcelain & Pop core text/background pairs meet WCAG AA contrast requireme
   assert.ok(contrastRatio('#111111', '#DDD3FF') >= 12);
   assert.ok(contrastRatio('#111111', '#FFD3DE') >= 12);
 });
+
+
+test('ProductSchema accepts representative live Postgres nullable fields and text arrays', () => {
+  const liveRow = {
+    id: '73f0d1ea-1b21-4a88-92b6-51aa6c5d8f10',
+    slug: 'live-supabase-product',
+    sku: 'LIVE-001',
+    name: 'Live Supabase Product',
+    tagline: null,
+    short_description: null,
+    description: null,
+    collection_id: 'bc6b4813-7a70-4d77-97e3-4f95c85e8fb7',
+    price_cents: 4900,
+    currency: 'USD',
+    status: 'published',
+    is_featured: false,
+    featured_rank: null,
+    tags: ['live', 'catalogue'],
+    file_formats: ['XLSX', 'PDF'],
+    includes: ['Workbook', 'Readme'],
+    audience: ['Operators'],
+    requirements: null,
+    first_hour: ['Open the workbook', 'Review the dashboard'],
+    cover_path: null,
+    version: null,
+    seo_title: null,
+    seo_description: null,
+    image_prompt: null,
+    published_at: null,
+  };
+  const parsed = ProductSchema.safeParse(liveRow);
+  assert.equal(parsed.success, true, parsed.success ? undefined : JSON.stringify(parsed.error.issues));
+  if (parsed.success) {
+    assert.equal(parsed.data.description, null);
+    assert.deepEqual(parsed.data.tags, ['live', 'catalogue']);
+    assert.deepEqual(parsed.data.first_hour, ['Open the workbook', 'Review the dashboard']);
+    assert.equal(parsed.data.cover_path, null);
+    assert.equal(parsed.data.published_at, null);
+  }
+});
+
+test('ProductSchema normalizes nullable Postgres text[] fields to empty arrays', () => {
+  const parsed = ProductSchema.safeParse({
+    id: '73f0d1ea-1b21-4a88-92b6-51aa6c5d8f10',
+    slug: 'null-arrays',
+    sku: 'LIVE-002',
+    name: 'Nullable arrays',
+    price_cents: 1900,
+    status: 'published',
+    tags: null,
+    file_formats: null,
+    includes: null,
+    audience: null,
+    first_hour: null,
+  });
+  assert.equal(parsed.success, true);
+  if (parsed.success) {
+    assert.deepEqual(parsed.data.tags, []);
+    assert.deepEqual(parsed.data.file_formats, []);
+    assert.deepEqual(parsed.data.includes, []);
+    assert.deepEqual(parsed.data.audience, []);
+    assert.deepEqual(parsed.data.first_hour, []);
+  }
+});

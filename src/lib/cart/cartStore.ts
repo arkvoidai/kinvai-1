@@ -96,6 +96,12 @@ export function removeProductId(ids: readonly string[], productId: string): stri
   return ids.filter((id) => id !== productId);
 }
 
+/** Keep cart IDs only for products the signed-in account does not already own. */
+export function reconcileCartProductIds(cartIds: readonly string[], ownedIds: readonly string[]): string[] {
+  const owned = new Set(dedupeIds(ownedIds));
+  return dedupeIds(cartIds).filter((productId) => !owned.has(productId));
+}
+
 function readInitialCartIds(): string[] {
   if (typeof window === 'undefined') return [];
   try {

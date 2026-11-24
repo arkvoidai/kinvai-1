@@ -11,6 +11,7 @@ import { downloadsRouter } from './routes/downloads.ts';
 import { checkoutRouter } from './routes/checkout.ts';
 import { ordersRouter } from './routes/orders.ts';
 import { libraryRouter } from './routes/library.ts';
+import { profileRouter } from './routes/profile.ts';
 import { formsRouter } from './routes/forms.ts';
 import { healthRouter } from './routes/health.ts';
 import { mediaRouter } from './routes/media.ts';
@@ -252,6 +253,7 @@ export async function createApp(): Promise<Express> {
   app.use('/api/payments', paymentsRouter);
   app.use('/api/orders', ordersRouter);
   app.use('/api/library', libraryRouter);
+  app.use('/api/profile', profileRouter);
   app.use('/api/download', downloadsRouter);
   app.use('/api/downloads', downloadsRouter);
   app.use('/api/media', mediaRouter);

@@ -23,7 +23,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     openSignInSheet(returnPath);
   }, [loading, user, returnPath, openSignInSheet]);
 
-  if (loading) {
+  if (loading || !user) {
     return (
       <div className="kv-container py-10 max-w-4xl flex flex-col gap-5" aria-busy="true">
         <Skeleton className="h-8 w-40" rounded="pill" />

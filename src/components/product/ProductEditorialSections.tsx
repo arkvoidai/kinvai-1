@@ -423,7 +423,7 @@ export function ProductEditorialSections({
                 variant="primary"
                 inverted
                 size="lg"
-                to="/account"
+                to="/account?tab=library"
                 icon={<Download size={18} strokeWidth={1.75} aria-hidden="true" />}
               >
                 Download from your library

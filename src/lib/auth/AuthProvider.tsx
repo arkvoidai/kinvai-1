@@ -4,11 +4,10 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from 'react';
-import type { Session, User } from '@supabase/supabase-js';
+import type { User } from '@supabase/supabase-js';
 import { getPublicConfig } from '../config';
 import { ProfileSchema, type Profile } from '../data/types';
 import { getSupabaseBrowserClient } from '../supabase/client';
@@ -30,45 +29,53 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 async function fetchUserProfile(userId: string): Promise<Profile | null> {
   const client = getSupabaseBrowserClient();
   if (!client) return null;
-
   try {
+    // is_admin is read-only here; the browser never writes or upserts role information.
     const { data, error } = await client
       .from('profiles')
       .select('id, display_name, avatar_url, country_code, is_admin')
       .eq('id', userId)
       .maybeSingle();
-
-    if (error || !data) return null;
+    if (error) {
+      if (import.meta.env.DEV) console.error('[kinvai-auth] Profile read failed.', error);
+      return null;
+    }
+    if (!data) return null;
     const parsed = ProfileSchema.safeParse(data);
+    if (!parsed.success && import.meta.env.DEV) console.error('[kinvai-auth] Profile row did not match its schema.', parsed.error.issues);
     return parsed.success ? parsed.data : null;
-  } catch {
+  } catch (error) {
+    if (import.meta.env.DEV) console.error('[kinvai-auth] Profile read threw.', error);
     return null;
   }
+}
+
+async function syncProfileAndFetch(user: User): Promise<Profile | null> {
+  const client = getSupabaseBrowserClient();
+  if (!client) return null;
+
+  // This function is called from a React effect, never inside onAuthStateChange.
+  const { data, error } = await client.auth.getSession();
+  if (error) throw error;
+  const session = data.session;
+  if (!session || session.user.id !== user.id) return null;
+
+  const response = await fetch('/api/profile/sync', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { Authorization: `Bearer ${session.access_token}`, Accept: 'application/json' },
+  });
+  if (!response.ok) throw new Error(`Profile sync failed (HTTP ${response.status}).`);
+  return fetchUserProfile(user.id);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const profileRequestRef = useRef(0);
 
   const client = getSupabaseBrowserClient();
   const configured = Boolean(client);
-
-  const syncSession = useCallback(async (session: Session | null) => {
-    const requestId = ++profileRequestRef.current;
-    const nextUser = session?.user ?? null;
-
-    setUser(nextUser);
-    setProfile(null);
-
-    if (!nextUser) return;
-
-    const nextProfile = await fetchUserProfile(nextUser.id);
-    if (requestId === profileRequestRef.current) {
-      setProfile(nextProfile);
-    }
-  }, []);
 
   useEffect(() => {
     if (!client) {
@@ -79,71 +86,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let active = true;
-    const bootRevision = profileRequestRef.current;
-
-    // Subscribe before reading the stored session so a sign-in/sign-out event cannot be missed.
-    // Keep this callback synchronous; profile reads run after it returns.
-    let initialSessionEventReceived = false;
-    const {
-      data: { subscription },
-    } = client.auth.onAuthStateChange((event, session) => {
+    // The singleton client's detectSessionInUrl=true handler owns the PKCE exchange and emits
+    // INITIAL_SESSION after restoring the session. This callback is deliberately synchronous.
+    const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
       if (!active) return;
-      if (event === 'INITIAL_SESSION') initialSessionEventReceived = true;
-
-      // Defer all Supabase reads until this auth callback has returned to avoid lock contention.
-      queueMicrotask(() => {
-        if (!active) return;
-        void syncSession(session).finally(() => {
-          if (active && event === 'INITIAL_SESSION') setLoading(false);
-        });
-      });
+      const nextUser = session?.user ?? null;
+      setUser(nextUser);
+      setProfile((current) => current?.id === nextUser?.id ? current : null);
+      if (event === 'INITIAL_SESSION') setLoading(false);
     });
-
-    client.auth
-      .getSession()
-      .then(async ({ data, error }) => {
-        if (
-          !active ||
-          initialSessionEventReceived ||
-          profileRequestRef.current !== bootRevision
-        ) return;
-        if (error) {
-          setUser(null);
-          setProfile(null);
-        } else {
-          await syncSession(data.session);
-        }
-        if (active && !initialSessionEventReceived) setLoading(false);
-      })
-      .catch(() => {
-        if (!active || profileRequestRef.current !== bootRevision) return;
-        setUser(null);
-        setProfile(null);
-        setLoading(false);
-      });
 
     return () => {
       active = false;
-      profileRequestRef.current += 1;
       subscription.unsubscribe();
     };
-  }, [client, syncSession]);
+  }, [client]);
+
+  // Profile sync and the database read happen after the auth callback has returned, keyed by user ID.
+  useEffect(() => {
+    if (!client || !user) {
+      setProfile(null);
+      return;
+    }
+    let active = true;
+    const currentUser = user;
+    void syncProfileAndFetch(currentUser)
+      .then((nextProfile) => {
+        if (active) setProfile(nextProfile);
+      })
+      .catch((error) => {
+        if (active && import.meta.env.DEV) console.error('[kinvai-auth] Profile sync failed.', error);
+      });
+    return () => {
+      active = false;
+    };
+  }, [client, user?.id]);
 
   const signInWithGoogle = useCallback(
     async (redirectPath = '/account'): Promise<{ error: string | null }> => {
-      if (!client) {
-        return { error: 'Sign-in is unavailable until Supabase authentication is configured.' };
-      }
-
+      if (!client) return { error: 'Sign-in is unavailable until Supabase authentication is configured.' };
       const { siteUrl } = getPublicConfig();
       const runtimeOrigin = typeof window !== 'undefined' ? window.location.origin : '';
       const redirectTo = buildOAuthRedirectUrl(siteUrl, redirectPath, runtimeOrigin);
-
       try {
-        const { error } = await client.auth.signInWithOAuth({
-          provider: 'google',
-          options: { redirectTo },
-        });
+        const { error } = await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
         return { error: error ? error.message : null };
       } catch {
         return { error: 'Google sign-in could not start. Please try again.' };
@@ -154,13 +140,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async (): Promise<{ error: string | null }> => {
     if (!client) return { error: 'Sign-out is unavailable right now.' };
-
     try {
       const { error } = await client.auth.signOut();
-      if (error) return { error: error.message };
-      setUser(null);
-      setProfile(null);
-      return { error: null };
+      return { error: error ? error.message : null };
     } catch {
       return { error: 'Sign-out could not be completed. Please try again.' };
     }
@@ -168,8 +150,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = useCallback(async () => {
     if (!user) return;
-    const nextProfile = await fetchUserProfile(user.id);
-    setProfile(nextProfile);
+    try {
+      setProfile(await syncProfileAndFetch(user));
+    } catch (error) {
+      if (import.meta.env.DEV) console.error('[kinvai-auth] Profile refresh failed.', error);
+    }
   }, [user]);
 
   const value = useMemo<AuthContextValue>(
