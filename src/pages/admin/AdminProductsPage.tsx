@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowDown, ArrowUp, Check, FileImage, ImagePlus, LoaderCircle, Plus, Search, Sparkles, Trash2, UploadCloud, X } from 'lucide-react';
-import { Button, Checkbox, Input, ProductCover, Sheet, Skeleton, TagPill, Tile, useToast } from '../../components/primitives';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type DragEvent } from 'react';
+import { z } from 'zod';
+import { ArrowDown, ArrowUp, FileImage, Plus, Search, Sparkles, Trash2, UploadCloud } from 'lucide-react';
+import { Button, Checkbox, Input, Sheet, Skeleton, TagPill, Tile, useToast } from '../../components/primitives';
 import { useAuth } from '../../lib/auth/AuthProvider';
 import { getSupabaseBrowserClient } from '../../lib/supabase/client';
 import { getProductMediaSrcSet, getProductMediaVariantPath } from '../../lib/media/imagePipeline';
@@ -19,7 +19,6 @@ import {
   slugify,
   storeProductImage,
   toProductPayload,
-  uploadCollectionImage,
   type ProductDraft,
 } from './adminHelpers';
 
@@ -501,7 +500,7 @@ function FilesManager({ product, files, loading, onFilesChange }: {
 }) {
   const client = getSupabaseBrowserClient();
   const { toast } = useToast();
-  const uploadRef = useRef<InstanceType<typeof import('tus-js-client').Upload> | null>(null);
+  const uploadRef = useRef<{ abort: (shouldTerminate?: boolean) => Promise<void>; start: () => void } | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [version, setVersion] = useState(product.version || '1.0');
   const [progress, setProgress] = useState(0);
@@ -620,7 +619,7 @@ function FilesManager({ product, files, loading, onFilesChange }: {
       });
       const body = await response.json();
       if (!response.ok || !body.url) throw new Error(body.error || 'A signed test download could not be created.');
-      window.open(body.url, '_blank', 'noopener,noreferrer');
+      window.location.assign(body.url);
     } catch (error) {
       toast({ title: 'Test download failed', description: error instanceof Error ? error.message : 'Try again.', tone: 'error' });
     }
@@ -646,9 +645,7 @@ function FilesManager({ product, files, loading, onFilesChange }: {
   );
 }
 
-const zFileSchema = ImageUploadSchema.pick({ name: true, size: true }).extend({
-  type: import('zod').z.string().max(255),
-});
+const zFileSchema = z.object({ name: z.string().trim().min(1).max(255), size: z.number().int().positive(), type: z.string().max(255) });
 
 export function AdminProductsPage() {
   const client = getSupabaseBrowserClient();
@@ -779,8 +776,8 @@ export function AdminImagesPage() {
       try {
         const collection = collections.find((entry) => entry.id === item.collection_id) || null;
         const result = await generateAdminImage(session.session.access_token, item.id, buildCoverPrompt(item, collection));
-        await storeProductImage(client, item, base64ToBlob(result.imageBase64, result.mimeType), item.name + ' product cover', 'gemini', autoSet);
-        if (autoSet) setProducts((previous) => previous.map((row) => row.id === item.id ? { ...row, cover_path: 'products/' + item.id } : row));
+        const savedMedia = await storeProductImage(client, item, base64ToBlob(result.imageBase64, result.mimeType), item.name + ' product cover', 'gemini', autoSet);
+        if (autoSet) setProducts((previous) => previous.map((row) => row.id === item.id ? { ...row, cover_path: savedMedia.storage_path } : row));
       } catch (error) {
         failed += 1;
         toast({ title: 'Could not generate ' + item.name, description: error instanceof Error ? error.message : 'The next product will continue.', tone: 'error' });
