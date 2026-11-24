@@ -11,7 +11,7 @@ function ContentFrame({
 }) {
   usePageMeta({ title: metaTitle, description: lead });
   return (
-    <main className="kv-container py-8 md:py-12 flex flex-col gap-8 md:gap-10">
+    <div className="kv-container py-8 md:py-12 flex flex-col gap-8 md:gap-10">
       <Breadcrumb items={[{ label: 'Home', to: '/' }, { label: crumb }]} />
       <header className="max-w-4xl flex flex-col items-start gap-3">
         <TagPill>{eyebrow}</TagPill>
@@ -19,7 +19,7 @@ function ContentFrame({
         <p className="type-body text-ink-2 prose-measure">{lead}</p>
       </header>
       {children}
-    </main>
+    </div>
   );
 }
 
