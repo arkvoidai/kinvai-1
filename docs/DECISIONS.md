@@ -199,3 +199,28 @@ This file records every engineering decision and assumption made across Kinvai b
 5. **Testing and operational boundary**
    - Existing `node:test` imports were changed to Vitest imports because the project test script is `vitest run`; no test assertions were intentionally changed.
    - Payment-provider Sandbox calls, account-level USD activation, and real Storage signed downloads remain manual owner verification steps documented in `docs/PAYMENTS_TEST.md`. No schema migrations, provider-setting changes, credential creation, or real charges/refunds were performed during implementation.
+
+## Prompt 9: Owner Admin & Image Studio
+
+1. **Private owner workspace**
+   - /admin and its subroutes render a dedicated phone-first shell with no storefront header, footer, cart, account tabs, or public navigation. Only a signed-in session whose profiles.is_admin is true sees the workspace; signed-out and non-admin visitors receive the standard designed 404. The route remains disallowed in robots.txt and is injected with noindex, nofollow.
+   - Catalogue reads and writes, object uploads/deletes, collection edits, reviews, inbox handling, announcement settings and payment/order inspection use the owner's browser Supabase session. RLS is the authorization boundary for every database and Storage operation. No service-role client or key is imported under /src.
+
+2. **Product editor and media**
+   - Product forms validate with Zod, check slug uniqueness before save, convert decimal USD input to integer cents, autosave existing drafts, and guard navigation when edits remain unsaved. Publishing relies on the existing database trigger; its active-file requirement is mapped to the plain-language owner message "Attach at least one active file before publishing".
+   - Owner-selected uploads and Gemini outputs share the existing processImage WebP pipeline (480, 960 and 1600 widths) and are uploaded through the signed-in browser client to the public product-media bucket. product_media stores the storage base path, kind, alt text and source; setting a cover also updates products.cover_path, which is already the shared field consumed by storefront cards and product pages.
+   - Gemini generation is the only image-generation server operation. The existing server admin guard and generation endpoint are reused. The Fast option uses the configured image model (default gemini-3.1-flash-image); Best explicitly selects gemini-3-pro-image. Returned options remain client-side until the owner chooses cover or gallery. Bulk generation is sequential, cancellable between products, continues after a failed product, and only replaces covers when the private owner preference admin_auto_set_generated_covers is enabled.
+   - AI-generated images are saved as source='gemini'; manual uploads are saved as source='upload'. The interface asks for non-empty alt text for each media record and includes the SynthID note.
+
+3. **Private deliverables**
+   - Product files are sent directly from the browser to the private product-files bucket using tus-js-client resumable uploads and the owner access token. Browser Web Crypto computes SHA-256 before upload; product_files records the path, file name, MIME type, size, version, checksum and active flag. No file bytes pass through the application server.
+   - The server has one additional owner-only endpoint for a 60-second signed test-download URL. It uses the existing requireAdmin check and service-role Storage API because private files are not publicly addressable; it does not write catalogue data.
+
+4. **Operations and inbox**
+   - The overview, order detail, review moderation, contact handling, newsletter list, collections and launch checks are browser/RLS operations. Refund actions are deliberately not provided; order details link to the relevant provider dashboards.
+   - The existing newsletter_subscribers table does not contain a handled column. To support an owner-only handled toggle without changing the database schema, newsletter handled IDs are held in private site_settings.admin_handled_newsletter_ids. Contact message handled state remains in contact_messages.handled.
+   - The announcement editor writes the existing site_settings.announcement format used by the storefront. The launch checklist checks active files, cover alt text, SEO fields, payment provider flags and that ALLOW_SEED_FALLBACK is disabled.
+
+5. **Schema and testing boundary**
+   - No migrations, schema edits, policy changes or live catalogue data mutations were performed as part of Prompt 9. Existing tables, admin RLS and the two existing buckets are used.
+   - Exact owner flow, non-admin 404, signed download and storefront cover propagation checks are documented in docs/ADMIN_TEST.md. Local TypeScript/lint, unit tests, build, browser QA, real TUS transfer and Gemini calls still require execution in the configured project environment.
