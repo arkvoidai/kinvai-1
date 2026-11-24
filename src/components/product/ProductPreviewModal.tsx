@@ -54,6 +54,7 @@ export function ProductPreviewModal(props: ProductPreviewModalProps) {
   const [activeTab, setActiveTab] = useState<ProductPreviewTab>('gallery');
   const [activeIndex, setActiveIndex] = useState(0);
   const [zoomed, setZoomed] = useState(false);
+  const [selectedEntry, setSelectedEntry] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
@@ -137,7 +138,7 @@ export function ProductPreviewModal(props: ProductPreviewModalProps) {
     if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy)) moveImage(dx < 0 ? 1 : -1);
   };
 
-  if (!open || typeof document === 'undefined') return null;
+  if (typeof document === 'undefined') return null;
 
   return createPortal(
     <AnimatePresence>
@@ -151,7 +152,7 @@ export function ProductPreviewModal(props: ProductPreviewModalProps) {
             initial={{ opacity: 0, y: 28, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 22, scale: 0.985 }}
             transition={{ type: 'spring', stiffness: 380, damping: 36 }}
-            className="relative z-10 flex max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-[28px] border border-line bg-surface shadow-[var(--shadow-float)] md:max-h-[min(900px,calc(100dvh-40px))] md:max-w-5xl md:rounded-[32px]">
+            className="relative z-10 flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-[28px] border border-line bg-surface shadow-[var(--shadow-float)] md:h-auto md:max-h-[min(900px,calc(100dvh-40px))] md:max-w-5xl md:rounded-[32px]">
             <div className="flex justify-center pt-2.5 md:hidden" aria-hidden="true">
               <span className="h-1 w-10 rounded-full bg-ink/20" />
             </div>
@@ -253,13 +254,19 @@ export function ProductPreviewModal(props: ProductPreviewModalProps) {
                       <ul className="flex flex-col gap-2">
                         {entries.map((entry, index) => {
                           const Icon = fileIcon(entry);
-                          return <li key={entry + '-' + index} className="flex items-center gap-3 rounded-[15px] border border-line/80 bg-surface px-3 py-3 sm:px-4">
-                            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-stone text-ink-2"><Icon size={17} strokeWidth={1.7} /></span>
-                            <span className="min-w-0 flex-1 text-sm text-ink">{entry}</span>
-                            <span className="font-mono text-[10px] uppercase tracking-[0.07em] text-ink-2">Included</span>
+                          return <li key={entry + '-' + index}>
+                            <button type="button" onClick={() => setSelectedEntry(entry)} aria-pressed={selectedEntry === entry}
+                              className={'flex w-full items-center gap-3 rounded-[15px] border px-3 py-3 text-left transition-colors sm:px-4 ' + (selectedEntry === entry ? 'border-ink bg-stone' : 'border-line/80 bg-surface hover:border-ink/40')}>
+                              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-stone text-ink-2"><Icon size={17} strokeWidth={1.7} /></span>
+                              <span className="min-w-0 flex-1 text-sm text-ink">{entry}</span>
+                              <span className="font-mono text-[10px] uppercase tracking-[0.07em] text-ink-2">Included</span>
+                            </button>
                           </li>;
                         })}
                       </ul>
+                      {selectedEntry && <p className="mt-3 rounded-[13px] border border-line bg-surface px-4 py-3 text-xs leading-relaxed text-ink-2">
+                        <span className="font-medium text-ink">{selectedEntry}</span> is included in this product archive.
+                      </p>}
                     </div>
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                       {formats.map((format) => <span key={format} className="rounded-full border border-line bg-surface px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.07em] text-ink">{format}</span>)}
