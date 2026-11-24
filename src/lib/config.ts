@@ -30,6 +30,12 @@ const DEFAULT_CONFIG: KinvaiPublicConfig = {
 
 let configRequest: Promise<KinvaiPublicConfig> | null = null;
 
+function trimTrailingSlashes(value: string): string {
+  let normalized = value;
+  while (normalized.endsWith('/')) normalized = normalized.slice(0, -1);
+  return normalized;
+}
+
 function normalizePublicConfig(value: unknown): KinvaiPublicConfig {
   const raw = value && typeof value === 'object'
     ? value as Partial<KinvaiPublicConfig>
@@ -37,9 +43,9 @@ function normalizePublicConfig(value: unknown): KinvaiPublicConfig {
   const flags = raw.flags && typeof raw.flags === 'object' ? raw.flags : DEFAULT_CONFIG.flags;
   return {
     siteUrl: typeof raw.siteUrl === 'string' && raw.siteUrl.trim()
-      ? raw.siteUrl.replace(/\\/+$/, '')
+      ? trimTrailingSlashes(raw.siteUrl)
       : DEFAULT_CONFIG.siteUrl,
-    supabaseUrl: typeof raw.supabaseUrl === 'string' ? raw.supabaseUrl.trim().replace(/\\/+$/, '') : '',
+    supabaseUrl: typeof raw.supabaseUrl === 'string' ? trimTrailingSlashes(raw.supabaseUrl.trim()) : '',
     supabasePublishableKey: typeof raw.supabasePublishableKey === 'string'
       ? raw.supabasePublishableKey.trim()
       : '',
