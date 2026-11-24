@@ -263,3 +263,12 @@ This file records every engineering decision and assumption made across Kinvai b
 - Homepage/About wording was narrowed to avoid claims that every product is independently tested, contains a prescribed documentation pack, is watermark-free, or receives lifetime updates. Product pages remain the source of truth for included files, formats, requirements and version.
 - The purchase FAQ now describes access to the purchased version and does not promise a fixed update schedule. Refund FAQ wording points customers to the Refunds page and applicable consumer rights rather than asserting an unverified fixed refund window.
 - Privacy, Terms and Refunds still contain unresolved factual/legal details. The production owner-marker gate remains enabled. Do not publish these drafts as approved legal terms or bypass the gate until the missing operational facts are verified and qualified legal review is complete.
+
+
+## Production policy-copy completion — 2026-11-24
+
+- Owner explicitly requested production-ready customer copy and instructed use of **Arkvoid Inc.** as the public-facing business name even without a verified registration. Copy therefore uses it as a public-facing name and does not claim incorporation, a company number, jurisdiction or registered office.
+- Privacy copy was aligned to source-inspected application flows: Google sign-in/profile data; account-linked orders and entitlements; provider payment references; private download access; download security logs (user, product, file, keyed IP hash and user-agent); contact submissions; newsletter email; and browser storage for authentication/cart/wishlist. Provider-side cookie inventories, backup retention and precise retention schedules remain external verification items and are not asserted as fixed facts.
+- Owner delegated a conservative 14-calendar-day store refund-request period. The page preserves longer/non-waivable consumer rights, does not promise provider processing times, and distinguishes technical/payment issues from change-of-mind requests.
+- Terms avoid inventing a governing jurisdiction, registered address, corporate status, tax treatment or provider SLA. Mandatory legal rights are expressly preserved. This is customer-facing operational copy, not a claim of lawyer approval or legal advice.
+- The production owner-marker gate remains enabled. No marker was removed by weakening the checker; the source pages were rewritten with explicit policy language and the evidence ledger retains external legal/operational follow-ups.
