@@ -10,7 +10,7 @@ Kinvai is a digital-download storefront operated by Arkvoid Inc. It is built wit
 4. Set SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, SITE_URL and the other required development values.
 5. Run bun run dev and open the local server on port 3000.
 
-The source includes unresolved legal and claim markers by design. The production build command is guarded and will stop until the owner resolves them in source after review. Do not remove a marker just to make a build pass.
+The source includes unresolved legal and claim markers by design. The production build command is guarded and will stop until the owner resolves them in source after review. Vercel Preview builds skip that production-only gate so the preview can be used for review and QA. Do not remove a marker just to make a build pass.
 
 ## Scripts
 
@@ -20,7 +20,7 @@ The source includes unresolved legal and claim markers by design. The production
 | bun run dev | Express + Vite development server |
 | bun run lint | TypeScript check |
 | bun run test | Vitest suite |
-| bun run build | Owner-marker gate, then Vite production build |
+| bun run build | Production owner-marker gate, then Vite build |
 | bun run start | Start the production Express server |
 | bun run audit:links | Scan rendered preview routes and internal anchors (requires Playwright) |
 
