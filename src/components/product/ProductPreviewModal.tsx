@@ -84,7 +84,16 @@ export function ProductPreviewModal(props: ProductPreviewModalProps) {
     document.body.style.overflow = 'hidden';
     if (scrollbar > 0) document.body.style.paddingRight = scrollbar + 'px';
     const raf = window.requestAnimationFrame(() => closeRef.current?.focus());
+    return () => {
+      window.cancelAnimationFrame(raf);
+      document.body.style.overflow = oldOverflow;
+      document.body.style.paddingRight = oldPadding;
+      previousFocus.current?.focus();
+    };
+  }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -111,14 +120,8 @@ export function ProductPreviewModal(props: ProductPreviewModalProps) {
       }
     };
     window.addEventListener('keydown', onKey);
-    return () => {
-      window.cancelAnimationFrame(raf);
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = oldOverflow;
-      document.body.style.paddingRight = oldPadding;
-      previousFocus.current?.focus();
-    };
-  }, [open, activeTab, initialTab, initialIndex, onClose, moveImage]);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, activeTab, onClose, moveImage]);
 
   const onTouchStart = (event: TouchEvent<HTMLDivElement>) => {
     const touch = event.touches[0];
@@ -139,8 +142,8 @@ export function ProductPreviewModal(props: ProductPreviewModalProps) {
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-[var(--z-dialog)] flex items-end justify-center md:items-center md:p-5" data-product-preview-modal>
-          <motion.button type="button" tabIndex={-1} aria-label="Close product preview" onClick={onClose}
+        <div className="fixed inset-0 z-[100] flex items-end justify-center md:items-center md:p-5" data-product-preview-modal>
+          <motion.div role="presentation" onClick={onClose}
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="absolute inset-0 cursor-default bg-ink/45 backdrop-blur-[3px]" />
           <motion.div ref={dialogRef} role="dialog" aria-modal="true"
