@@ -6,6 +6,7 @@ import { getPublicServerConfig, serializePublicConfigScript } from './lib/config
 import { createRateLimitMiddleware } from './lib/rateLimit.ts';
 import { adminImageRouter } from './routes/adminImage.ts';
 import { downloadsRouter } from './routes/downloads.ts';
+import { libraryRouter } from './routes/library.ts';
 import { formsRouter } from './routes/forms.ts';
 import { healthRouter } from './routes/health.ts';
 import { mediaRouter } from './routes/media.ts';
@@ -189,6 +190,9 @@ export async function createApp(): Promise<Express> {
 
   // API route modules
   app.use('/api/payments', paymentsRouter);
+  app.use('/api/library', libraryRouter);
+  // Prompt 7 account UI uses /api/download/:productId; Prompt 8 supplies signed delivery.
+  app.use('/api/download', downloadsRouter);
   app.use('/api/downloads', downloadsRouter);
   app.use('/api/media', mediaRouter);
   app.use('/api/forms', formsRouter);
