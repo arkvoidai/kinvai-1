@@ -109,16 +109,6 @@ export function ProductGallery({
     }
   };
 
-  const scrollToMobileSlide = (idx: number) => {
-    const el = mobileScrollerRef.current;
-    if (!el) return;
-    el.scrollTo({
-      left: idx * el.clientWidth,
-      behavior: reduced ? 'auto' : 'smooth',
-    });
-    setMobileSlideIndex(idx);
-  };
-
   const renderPeekTile = (tile: SecondaryTile, compact = false) => {
     if (tile.kind === 'media') {
       const isSelected = activeDesktopMediaId === tile.media.id;
