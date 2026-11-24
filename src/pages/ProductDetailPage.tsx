@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { MobileStickyBuyBar } from '../components/product/MobileStickyBuyBar';
 import { ProductEditorialSections } from '../components/product/ProductEditorialSections';
@@ -55,7 +55,7 @@ export function ProductDetailPage() {
   const [loading, setLoading] = useState(true);
   const [reloadNonce, setReloadNonce] = useState(0);
 
-  // Add-to-cart 600ms drawn-check morph state
+  // Add-to-cart 650ms drawn-check morph state
   const [justAdded, setJustAdded] = useState(false);
   const addedTimerRef = useRef<number | null>(null);
 
@@ -293,6 +293,10 @@ export function ProductDetailPage() {
     navigate('/checkout');
   }, [navigate]);
 
+  const handleClosePreview = useCallback(() => {
+    setPreviewOpen(false);
+  }, []);
+
   const handleOpenPreview = useCallback((tab: ProductPreviewTab, index = 0) => {
     setPreviewTab(tab);
     setPreviewIndex(index);
@@ -451,7 +455,7 @@ export function ProductDetailPage() {
         justAdded={justAdded}
         initialTab={previewTab}
         initialIndex={previewIndex}
-        onClose={() => setPreviewOpen(false)}
+        onClose={handleClosePreview}
         onAddToCart={handleAddToCart}
         onBuyNow={handleBuyNow}
         onGoToCheckout={handleGoToCheckout}
