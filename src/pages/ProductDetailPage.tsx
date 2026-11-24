@@ -453,6 +453,7 @@ export function ProductDetailPage() {
         owned={owned}
         inCart={inCart}
         justAdded={justAdded}
+        isPreviewData={isPreviewData}
         initialTab={previewTab}
         initialIndex={previewIndex}
         onClose={handleClosePreview}
