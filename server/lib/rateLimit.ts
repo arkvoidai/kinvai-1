@@ -7,6 +7,8 @@ export interface RateLimitOptions {
   windowMs: number;
   maxRequests: number;
   keyPrefix?: string;
+  /** Optional authenticated identity for routes that need per-user rather than per-IP limits. */
+  keyGenerator?: (req: Request, res: Response) => string;
 }
 
 export interface RateLimitResult {
@@ -74,6 +76,14 @@ export function resolveRateLimitIp(ip: string | undefined, socketAddress?: strin
   return ip || socketAddress || 'unknown';
 }
 
+export function resolveRateLimitIdentity(
+  ip: string | undefined,
+  socketAddress: string | undefined,
+  customIdentity?: string
+): string {
+  return customIdentity?.trim() || resolveRateLimitIp(ip, socketAddress);
+}
+
 function writeRateLimitHeaders(res: Response, options: RateLimitOptions, result: RateLimitResult): void {
   res.setHeader('X-RateLimit-Limit', String(options.maxRequests));
   res.setHeader('X-RateLimit-Remaining', String(result.remaining));
@@ -99,6 +109,7 @@ export function createRateLimitMiddleware(options: RateLimitOptions) {
 
   return async function rateLimitMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
     const ip = resolveRateLimitIp(req.ip, req.socket.remoteAddress);
+    const identity = resolveRateLimitIdentity(ip, req.socket.remoteAddress, options.keyGenerator?.(req, res));
     const secrets = getServerSecrets();
     const admin = getSupabaseAdmin();
 
@@ -107,7 +118,7 @@ export function createRateLimitMiddleware(options: RateLimitOptions) {
         res.status(503).json({ error: 'Request protection is temporarily unavailable.' });
         return;
       }
-      const local = localLimiter.check(`${prefix}:${ip}`);
+      const local = localLimiter.check(`${prefix}:${identity}`);
       sendRateLimitResult(res, options, local);
       if (local.allowed) next();
       return;
@@ -116,7 +127,7 @@ export function createRateLimitMiddleware(options: RateLimitOptions) {
     try {
       // Store only an HMAC of the address; raw client IPs are never persisted.
       const keyHash = createHmac('sha256', secrets.supabaseServiceRoleKey)
-        .update(`${prefix}:${ip}`)
+        .update(`${prefix}:${identity}`)
         .digest('hex');
       const { data, error } = await admin.rpc('consume_api_rate_limit', {
         p_key_hash: keyHash,
