@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Download, ExternalLink, Inbox, Mail, RefreshCw, Save, ShieldCheck } from 'lucide-react';
+import { Download, ExternalLink, Mail, RefreshCw, Save, ShieldCheck } from 'lucide-react';
 import { Button, Checkbox, Input, Skeleton, TagPill, Tile, useToast } from '../../components/primitives';
 import { getPublicConfig } from '../../lib/config';
 import { getSupabaseBrowserClient } from '../../lib/supabase/client';
 import type { Collection, Product } from '../../lib/data/types';
 import { formatUsd, uploadCollectionImage } from './adminHelpers';
-import { useAuth } from '../../lib/auth/AuthProvider';
 import { z } from 'zod';
 
 const cardClass = 'rounded-[24px] border border-line bg-surface p-4 sm:p-5';
