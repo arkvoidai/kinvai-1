@@ -359,9 +359,7 @@ function ImageStudio({ product, collection, onProductUpdate }: {
     return saved;
   };
 
-  const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
+  const acceptUpload = async (file: File | undefined) => {
     if (!file) return;
     const validation = ImageUploadSchema.safeParse(file);
     if (!validation.success) { toast({ title: 'Unsupported image', description: validation.error.issues[0]?.message, tone: 'error' }); return; }
@@ -373,6 +371,17 @@ function ImageStudio({ product, collection, onProductUpdate }: {
     } catch (error) {
       toast({ title: 'Image upload failed', description: error instanceof Error ? error.message : 'Try again.', tone: 'error' });
     } finally { setUploading(false); }
+  };
+
+  const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    await acceptUpload(file);
+  };
+
+  const handleImageDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    void acceptUpload(event.dataTransfer.files?.[0]);
   };
 
   const savePrompt = async () => {
@@ -458,8 +467,17 @@ function ImageStudio({ product, collection, onProductUpdate }: {
         <p className="text-sm text-ink-2">JPG, PNG, WebP or AVIF. Up to 10 MB. Images are converted to responsive WebP files.</p>
         <Input label="Required alt text" value={uploadAlt} onChange={(event) => setUploadAlt(event.target.value)} placeholder="Describe the image" />
         <Checkbox label="Set this upload as the cover" checked={setUploadAsCover} onChange={(event) => setSetUploadAsCover(event.target.checked)} />
-        <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="sr-only" onChange={(event) => void handleUpload(event)} />
-        <Button loading={uploading} onClick={() => inputRef.current?.click()} icon={<UploadCloud size={18} />}>Choose image</Button>
+        <div
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={handleImageDrop}
+          className="rounded-[18px] border border-dashed border-line-strong bg-page p-4 sm:p-6 text-center space-y-2"
+        >
+          <UploadCloud size={24} className="mx-auto text-ink-3" aria-hidden="true" />
+          <p className="text-sm font-medium text-ink">Drop an image here</p>
+          <p className="text-xs text-ink-3">or choose a file from this device</p>
+          <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="sr-only" onChange={(event) => void handleUpload(event)} />
+          <Button loading={uploading} onClick={() => inputRef.current?.click()}>Choose image</Button>
+        </div>
       </section>
       <section className="rounded-[24px] border border-line bg-surface p-4 sm:p-5 space-y-4">
         <div className="flex flex-wrap justify-between items-center gap-3"><div><h3 className="font-semibold text-ink">Generate with Gemini</h3><p className="text-sm text-ink-2 mt-1">Three concepts, returned one at a time.</p></div><TagPill tone="brand">Image generation</TagPill></div>
