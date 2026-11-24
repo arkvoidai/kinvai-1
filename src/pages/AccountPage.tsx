@@ -499,9 +499,9 @@ export function AccountPage() {
     return (
       <div className="kv-container max-w-6xl py-10 flex flex-col gap-5" aria-busy="true">
         <Skeleton className="h-8 w-36" rounded="pill" />
-        <Skeleton className="h-36 w-full" rounded="xl" />
+        <Skeleton className="h-36 w-full" rounded="lg" />
         <Skeleton className="h-12 w-full" rounded="pill" />
-        <Skeleton className="h-72 w-full" rounded="xl" />
+        <Skeleton className="h-72 w-full" rounded="lg" />
       </div>
     );
   }
