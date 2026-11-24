@@ -41,6 +41,7 @@ export function MobileBottomBar() {
 
   // Never render on product detail pages — sticky buy bar replaces bottom navigation there
   const isProductDetail = pathname.startsWith('/products/') && pathname.length > '/products/'.length;
+  const isCheckoutRoute = pathname.startsWith('/checkout');
 
   useEffect(() => {
     setHidden(false);
@@ -75,7 +76,7 @@ export function MobileBottomBar() {
     };
   }, [isProductDetail]);
 
-  if (isProductDetail) {
+  if (isProductDetail || isCheckoutRoute) {
     return null;
   }
 

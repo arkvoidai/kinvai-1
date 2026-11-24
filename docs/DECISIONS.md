@@ -174,3 +174,28 @@ This file records every engineering decision and assumption made across Kinvai b
 
 5. **No schema or production-data changes**
    - Existing Supabase tables, RLS policies, triggers, and indexes support this prompt. No migration or live database mutation was performed for this implementation.
+
+
+## Prompt 8: Checkout, Payments & Signed Downloads
+
+1. **Server-authoritative order creation**
+   - The browser sends only unique product UUIDs and a single provider choice. `POST /api/checkout/create` authenticates the Supabase bearer token and calls the existing `create_order` RPC; the database validates published status, active ownership, order items and every price.
+   - A single provider is pinned to each order. The provider order is created server-side and its provider order ID is attached to the same database order before provider checkout is returned to the browser.
+
+2. **Provider confirmation**
+   - Razorpay checkout signatures are HMAC-SHA256 over `order_id|payment_id`; verification also fetches the payment from Razorpay and validates provider order ID, captured status, amount and USD currency before `mark_order_paid`.
+   - PayPal uses an OAuth token from the configured Sandbox/live API host, REST Orders v2 with CAPTURE intent, a `PayPal-Request-Id` based on the Kinvai order number, and server-side capture validation for COMPLETED status, exact amount and USD.
+   - Razorpay's USD availability is merchant-account dependent. A provider response indicating unsupported USD/international payments persists an unavailable status in the private `site_settings` key `payment_provider_runtime_status`, logs only structured status/code and exposes a temporary-unavailable state across app instances. The owner must confirm International Payments activation and clear that private status before retrying; no automatic account-level enablement is assumed.
+
+3. **Webhook signature, idempotency and privacy**
+   - Webhooks are mounted before `express.json()` and use raw request bytes. Razorpay uses HMAC-SHA256 with its webhook secret; PayPal uses the official verify-webhook-signature endpoint with the registered webhook ID and transmission headers.
+   - `record_payment_event` runs before event side effects; duplicate event IDs skip handling. If applying a newly recorded event fails, the just-inserted event record is removed so the provider retry can attempt processing again.
+   - Stored webhook payloads are allowlisted summaries rather than complete provider payloads. Logs omit secrets, bearer tokens and payment-method/card details.
+
+4. **Short-lived file delivery**
+   - The download endpoint checks the bearer token and active entitlement through the service-role client, returns only file metadata for multiple active files, or signs one private storage object for 60 seconds.
+   - Download logs store an HMAC hash of the request IP using the server-only service-role credential as a salt, plus user agent and object/product IDs. The private object path is never returned.
+
+5. **Testing and operational boundary**
+   - Existing `node:test` imports were changed to Vitest imports because the project test script is `vitest run`; no test assertions were intentionally changed.
+   - Payment-provider Sandbox calls, account-level USD activation, and real Storage signed downloads remain manual owner verification steps documented in `docs/PAYMENTS_TEST.md`. No schema migrations, provider-setting changes, credential creation, or real charges/refunds were performed during implementation.
