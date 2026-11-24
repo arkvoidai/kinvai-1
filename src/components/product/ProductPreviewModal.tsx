@@ -22,6 +22,7 @@ interface ProductPreviewModalProps {
   owned: boolean;
   inCart: boolean;
   justAdded: boolean;
+  isPreviewData: boolean;
   initialTab?: ProductPreviewTab;
   initialIndex?: number;
   onClose: () => void;
@@ -48,7 +49,7 @@ function fileIcon(name: string) {
 
 export function ProductPreviewModal(props: ProductPreviewModalProps) {
   const {
-    open, product, collection, media, owned, inCart, justAdded,
+    open, product, collection, media, owned, inCart, justAdded, isPreviewData,
     initialTab = 'gallery', initialIndex = 0, onClose, onAddToCart, onBuyNow, onGoToCheckout,
   } = props;
   const [activeTab, setActiveTab] = useState<ProductPreviewTab>('gallery');
@@ -154,9 +155,11 @@ export function ProductPreviewModal(props: ProductPreviewModalProps) {
             exit={{ opacity: 0, y: 22, scale: 0.985 }}
             transition={{ type: 'spring', stiffness: 380, damping: 36 }}
             className="relative z-10 flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-[28px] border border-line bg-surface shadow-[var(--shadow-float)] md:h-auto md:max-h-[min(900px,calc(100dvh-40px))] md:max-w-5xl md:rounded-[32px]">
-            <div className="flex justify-center pt-2.5 md:hidden" aria-hidden="true">
+            <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.35}
+              onDragEnd={(_, info) => { if (info.offset.y > 72) onClose(); }}
+              className="flex justify-center pt-2.5 md:hidden cursor-grab active:cursor-grabbing">
               <span className="h-1 w-10 rounded-full bg-ink/20" />
-            </div>
+            </motion.div>
             <header className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 pb-3 pt-3 sm:px-6 sm:pb-4 sm:pt-5">
               <div className="min-w-0 flex-1">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -319,7 +322,7 @@ export function ProductPreviewModal(props: ProductPreviewModalProps) {
                   : <button type="button" onClick={onAddToCart} className="min-h-[44px] flex-1 rounded-full border border-line-strong bg-surface px-5 text-sm font-medium text-ink hover:border-ink sm:min-w-[150px] sm:flex-none">
                       {justAdded ? <span className="inline-flex items-center gap-2"><Check size={16} className="text-success" />Added</span> : 'Add to cart'}
                     </button>}
-                <button type="button" onClick={onBuyNow} className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-full bg-ink px-5 text-sm font-medium text-white hover:bg-ink-soft sm:min-w-[142px] sm:flex-none">
+                <button type="button" onClick={onBuyNow} disabled={isPreviewData} className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-full bg-ink px-5 text-sm font-medium text-white hover:bg-ink-soft sm:min-w-[142px] sm:flex-none">
                   Buy now <ArrowRight size={15} />
                 </button>
               </div>}
