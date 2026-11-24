@@ -4,7 +4,7 @@ import { Button, Checkbox, Input, Skeleton, TagPill, Tile, useToast } from '../.
 import { getPublicConfig } from '../../lib/config';
 import { getSupabaseBrowserClient } from '../../lib/supabase/client';
 import type { Collection, Product } from '../../lib/data/types';
-import { formatUsd, uploadCollectionImage } from './adminHelpers';
+import { formatUsd, uploadCollectionImage, removeCollectionImage } from './adminHelpers';
 import { z } from 'zod';
 
 const cardClass = 'rounded-[24px] border border-line bg-surface p-4 sm:p-5';
@@ -152,10 +152,34 @@ export function AdminCollectionsPage() {
       if (result.error || !result.data) throw result.error || new Error('Collection was not saved.');
       let saved = result.data as Collection;
       if (imageFile) {
-        const path = await uploadCollectionImage(client, saved.id, imageFile);
-        const update = await client.from('collections').update({ image_path:path }).eq('id', saved.id).select('*').single();
-        if (update.error || !update.data) throw update.error || new Error('Collection image path could not be saved.');
+        const previousImagePath = saved.image_path;
+        const nextImagePath = await uploadCollectionImage(client, saved.id, imageFile);
+        const update = await client.from('collections')
+          .update({ image_path: nextImagePath })
+          .eq('id', saved.id)
+          .select('*')
+          .single();
+
+        if (update.error || !update.data) {
+          const cleanup = await removeCollectionImage(client, nextImagePath);
+          if (cleanup.error) {
+            console.error('[kinvai-admin] failed to clean up unlinked collection image:', cleanup.error);
+          }
+          throw update.error || new Error('Collection image path could not be saved.');
+        }
+
         saved = update.data as Collection;
+        if (previousImagePath && previousImagePath !== nextImagePath) {
+          const cleanup = await removeCollectionImage(client, previousImagePath);
+          if (cleanup.error) {
+            console.warn('[kinvai-admin] previous collection image cleanup failed:', cleanup.error);
+            toast({
+              title: 'Collection saved; old image cleanup needs attention',
+              description: cleanup.error,
+              tone: 'error',
+            });
+          }
+        }
       }
       toast({ title:'Collection saved', tone:'success' });
       setActiveId(saved.id);

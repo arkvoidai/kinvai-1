@@ -323,3 +323,19 @@ export async function uploadCollectionImage(
   }
 }
 
+
+
+/** Removes all responsive variants for a collection artwork base path. */
+export async function removeCollectionImage(
+  client: SupabaseClient,
+  basePath: string
+): Promise<{ error: string | null }> {
+  if (!basePath.startsWith('collections/')) {
+    return { error: 'The collection image path is invalid.' };
+  }
+  const paths = [480, 960, 1600].map((width) =>
+    getProductMediaVariantPath(basePath, width as 480 | 960 | 1600)
+  );
+  const { error } = await client.storage.from('product-media').remove(paths);
+  return { error: error?.message || null };
+}
