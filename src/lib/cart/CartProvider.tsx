@@ -100,7 +100,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (!active) return;
         setCollections(colRes.data);
         setCatalogueProducts(prodRes.items);
-        setCatalogueIsPreview(colRes.isPreviewData || prodRes.isPreviewData);
+        // Purchase eligibility follows the product rows, not the collection metadata source.
+        setCatalogueIsPreview(prodRes.isPreviewData);
         setCatalogueLoaded(true);
       })
       .catch(() => {
