@@ -285,16 +285,35 @@ export function LicencePage() {
 
 export function PrivacyPage() {
   return (
-    <ContentFrame crumb="Privacy" eyebrow="Legal draft · owner and lawyer review required" title="Privacy policy" lead="This draft describes the information used to sign in, process a digital order, provide downloads and respond to support requests. It is not ready for publication until the marked details are completed." metaTitle="Privacy policy — Kinvai">
+    <ContentFrame crumb="Privacy" eyebrow="How Kinvai handles information" title="Privacy policy" lead="This page explains the account, order, download and support information used to run Kinvai, and how to contact us about your data." metaTitle="Privacy policy — Kinvai">
       <section className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-        <CopyTile heading="Who operates Kinvai.">Kinvai is presented under the business name Arkvoid Inc. Contact: <a className="font-semibold text-brand-deep underline" href="mailto:heyarkvoid@gmail.com">heyarkvoid@gmail.com</a>. [OWNER TO COMPLETE: legal entity address, incorporation jurisdiction, registration details and privacy contact, if different.]</CopyTile>
-        <CopyTile heading="Account information.">Google sign-in is used to authenticate an account. The application may process the account identifier, email address, display name and profile image supplied through the sign-in flow. [OWNER TO COMPLETE: confirm the exact Google OAuth scopes and profile fields retained.]</CopyTile>
-        <CopyTile heading="Orders and payment processors.">Kinvai stores order, item, amount, currency, provider reference, payment status and entitlement records needed to fulfil a purchase. Razorpay and PayPal process payment details under their own terms and privacy notices. Kinvai does not intentionally store full card numbers or security codes.</CopyTile>
-        <CopyTile heading="Downloads and support.">Download logs may include the account, product and file reference, request time, browser user-agent and an IP-derived hash for delivery security. Contact messages and newsletter sign-ups are retained so the store can respond and manage communications. [OWNER TO COMPLETE: confirm log fields and any additional operational logs.]</CopyTile>
-        <CopyTile heading="Necessary storage only.">The site uses necessary sign-in/session storage and essential application storage to keep account access and core functions working. No advertising or analytics cookie is intended by this draft. [OWNER TO COMPLETE: inventory actual cookies, local/session storage keys, expiry periods, Google/Supabase/Cloud Run behavior and payment SDK storage before publication.]</CopyTile>
-        <CopyTile heading="Retention and deletion.">Information is kept only for as long as needed for account access, order fulfilment, security, support, legal and accounting obligations. [OWNER TO COMPLETE: set an actual retention schedule for profiles, orders, download logs, contact messages, newsletter records, backups and deletion requests.]</CopyTile>
-        <CopyTile heading="Rights and international transfers.">Depending on the location of the customer, local privacy laws may provide rights to access, correct, delete or restrict certain personal information. [OWNER TO COMPLETE: identify applicable laws, lawful bases, controller/processor roles, cross-border transfer safeguards and request process.]</CopyTile>
-        <CopyTile heading="Contact.">For privacy questions, email heyarkvoid@gmail.com. [OWNER TO COMPLETE: identify the governing jurisdiction, complaint authority and required statutory disclosures.]</CopyTile>
+        <CopyTile heading="Who to contact.">
+          Kinvai is presented under the business name Arkvoid Inc. For privacy questions or requests, email heyarkvoid@gmail.com. The business name shown here is a public-facing name; this page does not make a representation about incorporation or registration status.
+        </CopyTile>
+        <CopyTile heading="Google sign-in and account details.">
+          When you choose Google sign-in, Google and the authentication service process information needed to authenticate you. This can include your account identifier, email address, name and profile image when supplied by Google. Kinvai also uses the account identifier and available profile details to connect your account with your library, saved products and orders.
+        </CopyTile>
+        <CopyTile heading="Orders and payments.">
+          Kinvai processes order details such as the products purchased, order number, amount, currency, payment provider, provider references, payment status and account entitlement. Razorpay or PayPal handles payment information through its own payment service. Kinvai does not ask you to email card numbers or security codes and does not intentionally store full payment-card numbers or security codes.
+        </CopyTile>
+        <CopyTile heading="Downloads and security.">
+          To protect paid files and investigate delivery problems, download requests may be recorded with the account, product and file identifiers, request time, a one-way keyed hash derived from the request IP address, and the browser user-agent. Download links are temporary. Security and rate-limiting systems may also process request/network information.
+        </CopyTile>
+        <CopyTile heading="Messages and newsletter.">
+          If you contact support, Kinvai receives the name, email address, optional subject and message you submit. If you subscribe to updates, Kinvai stores the email address you provide. These details are used to reply to your request or send the updates you requested. You can ask to stop newsletter messages by contacting support.
+        </CopyTile>
+        <CopyTile heading="Browser storage.">
+          Kinvai uses browser storage required for sign-in sessions and storefront functions such as the cart and saved products. Google, Supabase and payment providers may use their own storage when their services are used. Browser settings can clear or block storage, but doing so may affect sign-in, checkout or saved state. This policy does not claim that every third-party service uses no cookies.
+        </CopyTile>
+        <CopyTile heading="Service providers and transfers.">
+          Kinvai relies on service providers to host the application and data, authenticate accounts, store product files, and process payments. These providers may process information in the countries where their systems operate. Their own privacy notices and terms also apply to their services. Access to information is limited to what is needed to operate, secure and support the store.
+        </CopyTile>
+        <CopyTile heading="Retention and deletion requests.">
+          Kinvai keeps account, order, download, support and newsletter information for as long as it is reasonably needed to provide the service, maintain purchase records, prevent fraud, resolve disputes, and meet applicable legal or accounting obligations. Different records may need to be retained for different periods. To request access, correction or deletion, email heyarkvoid@gmail.com from the account email and describe the request. Some order or security records may need to be retained where the law permits or requires it.
+        </CopyTile>
+        <CopyTile heading="Your choices.">
+          You can stop using the site, sign out, manage browser storage through your browser settings, and contact Kinvai to request access, correction or deletion of personal information. Rights and response requirements depend on the laws that apply to you. Nothing on this page is intended to remove a privacy right that cannot legally be waived.
+        </CopyTile>
       </section>
     </ContentFrame>
   );
@@ -302,16 +321,38 @@ export function PrivacyPage() {
 
 export function TermsPage() {
   return (
-    <ContentFrame crumb="Terms" eyebrow="Legal draft · owner and lawyer review required" title="Terms of service" lead="These draft terms cover access to the storefront and purchases of downloadable digital products. They need jurisdiction-specific legal review before they can govern a live store." metaTitle="Terms of service — Kinvai">
+    <ContentFrame crumb="Terms" eyebrow="Store terms" title="Terms of service" lead="These terms explain the basic rules for using Kinvai and buying downloadable digital products. Mandatory consumer rights continue to apply." metaTitle="Terms of service — Kinvai">
       <section className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-        <CopyTile heading="Operator and eligibility.">Kinvai is presented under the business name Arkvoid Inc. at kinvai.arkvoid.com. [OWNER TO COMPLETE: legal address, company registration, governing law, minimum age and any geographic restrictions.]</CopyTile>
-        <CopyTile heading="Digital products.">Kinvai sells downloadable digital files. The product page describes the listed formats, included deliverables, requirements and current version. Review that information before placing an order.</CopyTile>
-        <CopyTile heading="Orders and payment.">Prices are displayed in USD. Payment is processed through the provider offered at checkout, which may include Razorpay or PayPal. An order is complete only after the payment provider result is verified by Kinvai's server and the order is marked paid.</CopyTile>
-        <CopyTile heading="Access and account security.">Purchases are linked to the signed-in account. Keep access to that account secure and contact support if access is lost or a purchase appears on the wrong account. Do not share private download links.</CopyTile>
-        <CopyTile heading="Licence and prohibited use.">Use of downloaded files is governed by the Kinvai Licence page. Resale or redistribution of the files themselves is not permitted. Do not use the site to interfere with its security, access controls or normal operation.</CopyTile>
-        <CopyTile heading="Availability and changes.">Products, files and features may be corrected or updated. [OWNER TO COMPLETE: define update/support commitments, withdrawal rules, outage handling, tax/VAT treatment and change-notice requirements.]</CopyTile>
-        <CopyTile heading="Liability and disputes.">[OWNER TO COMPLETE: lawyer to draft mandatory consumer rights, warranties, disclaimers, limitation of liability, indemnity, dispute procedure, arbitration/courts and enforceability language under the chosen governing law.]</CopyTile>
-        <CopyTile heading="Contact.">Questions about these terms can be sent to heyarkvoid@gmail.com. [OWNER TO COMPLETE: effective date, company address and versioning process.]</CopyTile>
+        <CopyTile heading="Store identity and contact.">
+          Kinvai is presented under the business name Arkvoid Inc. at kinvai.arkvoid.com. For questions about the store, an order or these terms, email heyarkvoid@gmail.com. Arkvoid Inc. is the public-facing business name used by Kinvai; this wording does not claim a particular incorporation or registration status.
+        </CopyTile>
+        <CopyTile heading="Who may use the store.">
+          You may use Kinvai only if you can lawfully enter into a purchase agreement where you live. If you are not legally able to do so, a parent or legal guardian must make the purchase and supervise your use where permitted by law.
+        </CopyTile>
+        <CopyTile heading="Products and product descriptions.">
+          Kinvai sells downloadable digital files. The product page is the source of information about the listed contents, formats, requirements, version and price. Review those details and make sure you have compatible software before purchasing. Product availability and listed files may change over time.
+        </CopyTile>
+        <CopyTile heading="Orders and payment.">
+          Prices are displayed in USD unless the checkout clearly states otherwise. Available payment methods are shown at checkout. An order is accepted for fulfilment after the payment provider result is verified and the order is marked paid. The amount and currency are validated by the order service, not by information entered in the browser.
+        </CopyTile>
+        <CopyTile heading="Account and downloads.">
+          Purchases are connected to the account used during checkout. Keep your sign-in credentials secure and do not share private download links. Access to downloads requires an active purchase entitlement and an active product file. Download links are temporary; you can request a fresh link from your account library while the entitlement and file remain active.
+        </CopyTile>
+        <CopyTile heading="Licence and acceptable use.">
+          Your use of purchased files is governed by the Kinvai Licence page. You may not resell, sublicense, share or redistribute the files themselves, in original or modified form, or use the store to interfere with its security or normal operation.
+        </CopyTile>
+        <CopyTile heading="Updates and availability.">
+          The purchased version is the version identified on the product page at the time of purchase. Kinvai may correct or replace files, but does not promise a fixed update schedule or lifetime updates unless a particular product listing expressly says otherwise. Temporary service interruptions or changes to the catalogue do not remove rights attached to a completed purchase under applicable law.
+        </CopyTile>
+        <CopyTile heading="Refunds and mandatory rights.">
+          Refund requests are handled under the Kinvai Refunds page. Nothing in these terms excludes, restricts or replaces consumer rights, warranties or remedies that cannot legally be excluded or restricted where you live.
+        </CopyTile>
+        <CopyTile heading="Liability.">
+          Kinvai will take reasonable care in operating the storefront and delivering the files described on product pages. To the extent permitted by applicable law, Kinvai is not responsible for indirect or consequential loss arising from use of the site or files. Nothing in these terms limits liability for fraud, intentional misconduct, or any liability or remedy that applicable law does not allow to be limited.
+        </CopyTile>
+        <CopyTile heading="Changes and questions.">
+          These terms may be updated when the store or its practices change. The current version is the one published on this page. Questions or concerns should be sent to heyarkvoid@gmail.com. If a provision cannot be enforced under applicable law, the remaining provisions continue to apply to the extent permitted.
+        </CopyTile>
       </section>
     </ContentFrame>
   );
@@ -319,18 +360,26 @@ export function TermsPage() {
 
 export function RefundsPage() {
   return (
-    <ContentFrame crumb="Refunds" eyebrow="Legal draft · owner and lawyer review required" title="Refunds for digital goods" lead="A fair draft process for payment errors, missing downloads and files that do not work as described. The final policy must be checked against applicable consumer law." metaTitle="Refund policy — Kinvai">
+    <ContentFrame crumb="Refunds" eyebrow="Digital purchase support" title="Refunds for digital goods" lead="If a payment was duplicated, a download is missing, or a delivered file has a material problem, contact us and we will review the order." metaTitle="Refund policy — Kinvai">
       <section className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-        <CopyTile eyebrow="START HERE" heading="Contact support with the order details." className="bg-peach">
-          Email heyarkvoid@gmail.com with the order number, the product name and a clear description of the problem. Do not send full payment-card details or account passwords.
+        <CopyTile eyebrow="START HERE" heading="Contact support within 14 days." className="bg-peach">
+          Email heyarkvoid@gmail.com within 14 calendar days of the purchase, include the order number and product name, and explain the issue. Do not send card numbers, security codes or account passwords. This request period does not limit any longer or non-waivable rights available under applicable law.
         </CopyTile>
-        <CopyTile eyebrow="WHEN TO CONTACT" heading="Payment or delivery problems.">
-          Contact support for duplicate charges, a payment marked complete without library access, a broken or incomplete file, or a material difference between the delivered file and the product description.
+        <CopyTile eyebrow="WHEN WE REVIEW A REFUND" heading="Payment and delivery problems.">
+          We review duplicate charges, payments marked complete without library access, missing or corrupted files, and files that materially differ from the product description. If the problem can be fixed promptly by restoring access or supplying a corrected file, we may offer that remedy; this does not remove any legal right to a refund or other remedy.
         </CopyTile>
-        <CopyTile heading="Digital delivery.">Because digital files may become accessible immediately after payment confirmation, a change-of-mind request after access may be treated differently from a product that was not delivered or is materially defective. This draft does not remove any non-waivable rights available under local law.</CopyTile>
-        <CopyTile heading="Review and remedy.">Support may first investigate the payment, restore access, provide a corrected file or explain how to open the format. A refund may be considered where a charge was duplicated, delivery failed, or a material defect cannot reasonably be fixed, subject to applicable law and the final policy.</CopyTile>
-        <CopyTile heading="Time limits and exceptions.">[OWNER TO COMPLETE: approve the request window, review time, refund method, treatment of partial downloads, chargebacks, taxes, bundle purchases and any statutory withdrawal or digital-content consent rules. Do not publish an arbitrary no-refund rule without legal review.]</CopyTile>
-        <CopyTile heading="Payment provider records.">Refunds are processed through the payment provider and remain subject to its processing steps. Kinvai does not ask customers to send card numbers or security codes by email.</CopyTile>
+        <CopyTile heading="Change-of-mind requests.">
+          Digital products may be made available immediately after payment. A change-of-mind request after access has been provided is not automatically eligible under this store policy. This does not affect any cancellation, withdrawal or refund right that applies by law, including rights that cannot be waived for digital content.
+        </CopyTile>
+        <CopyTile heading="How approved refunds are handled.">
+          Where a refund is approved, it is sent through the original payment provider and, where supported, to the original payment method. The time for the funds to appear depends on the provider and the financial institution. Kinvai cannot control their processing time.
+        </CopyTile>
+        <CopyTile heading="Partial downloads and bundles.">
+          If only part of a bundle was downloaded or used, explain that in your request. We review the order, access and technical records and consider the nature of the issue and any applicable consumer rights. We do not ask customers to disclose payment-card details by email.
+        </CopyTile>
+        <CopyTile heading="Your legal rights remain.">
+          This policy is an additional support process, not a waiver of consumer protection law. If the law where you live gives you a longer request period or a mandatory right to cancel, withdraw or receive a refund, that legal right takes priority over the 14-day store request period or any other wording on this page.
+        </CopyTile>
       </section>
     </ContentFrame>
   );
