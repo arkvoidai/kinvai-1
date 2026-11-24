@@ -43,7 +43,7 @@ function normalizePublicConfig(value: unknown): KinvaiPublicConfig {
   const flags = raw.flags && typeof raw.flags === 'object' ? raw.flags : DEFAULT_CONFIG.flags;
   return {
     siteUrl: typeof raw.siteUrl === 'string' && raw.siteUrl.trim()
-      ? trimTrailingSlashes(raw.siteUrl)
+      ? trimTrailingSlashes(raw.siteUrl.trim())
       : DEFAULT_CONFIG.siteUrl,
     supabaseUrl: typeof raw.supabaseUrl === 'string' ? trimTrailingSlashes(raw.supabaseUrl.trim()) : '',
     supabasePublishableKey: typeof raw.supabasePublishableKey === 'string'
