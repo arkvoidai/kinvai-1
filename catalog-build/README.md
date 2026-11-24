@@ -1,13 +1,16 @@
-# Run the Shop — product bundle batch
+# Run the Shop — product batch status
 
-Four draft packaged digital products were assembled locally as versioned ZIP archives. Each ZIP includes an offline interactive HTML tool, an Excel workbook, a PDF playbook, onboarding notes and a single-seat licence. The marketplace launch bundle additionally includes four SOP markdown files.
+Four packaged digital-product ZIPs exist in the local build workspace, with dedicated offline HTML tools updated for product-specific modelling.
 
-- `kinvai-marketplace-launch-system-v1.0.zip` — KV-RTS-001, $49 proposed
-- `kinvai-pricing-margin-and-profit-calculator-v1.0.zip` — KV-RTS-002, $29 proposed
-- `kinvai-seller-operations-command-center-v1.0.zip` — KV-RTS-003, $44 proposed
-- `kinvai-startup-saas-financial-model-os-v1.0.zip` — KV-RTS-004, $59 proposed
+- Marketplace Launch System — KV-RTS-001, proposed $49. Dedicated weighted readiness scoring.
+- Pricing Margin & Profit Calculator — KV-RTS-002, proposed $29. Unit economics and break-even assumptions.
+- Seller Operations Command Center — KV-RTS-003, proposed $44. Inventory runway and reorder planning.
+- Startup & SaaS Financial Model OS — KV-RTS-004, proposed $59. Subscriber, MRR, cash and operating-cost forecast.
 
-## Verification and limitations
-The ZIPs passed `unzip -t`; embedded JS passed Node syntax checks during assembly. The HTML simulators are preliminary generic scoring/simulation shells, not independently QA'd dedicated domain models. Workbook formulas and PDF content were not independently audited. These packages are drafts pending review.
+## Local package verification
+ZIP integrity checks and Node syntax checks of embedded scripts passed after the HTML tool refresh. These are not comprehensive runtime, formula, workbook, PDF, business-domain, accessibility or security validations.
 
-This PR is limited to this README inventory: the local ZIP binaries cannot be transferred to the repository through the available GitHub file-content operation in this session. No production Supabase data or Storage objects were changed.
+## Repository and production boundary
+This pull request currently contains this status file only. ZIPs, refreshed HTML apps, factory scripts and the production seeder have not been transferred into the Git repository in this session. Supabase catalogue rows and private Storage uploads remain unchanged. No Vercel deployment was triggered.
+
+Do not publish or merge this status-only PR as a finished implementation.
