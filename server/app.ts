@@ -157,7 +157,13 @@ async function buildSeo(pathname: string): Promise<SeoResult> {
     try { slug = decodeURIComponent(slug); } catch { /* Keep the original route segment. */ }
     const { data: collection, error } = await client.from('collections')
       .select('id,name,slug,tagline,story').eq('slug', slug).eq('is_active', true).maybeSingle();
-    if (!error && collection) {
+    if (!error && !collection) {
+      result.title = 'Page not found — Kinvai';
+      result.description = 'The requested Kinvai collection could not be found.';
+      result.statusCode = 404;
+      result.canonical = null;
+      result.noindex = true;
+    } else if (!error && collection) {
       result.title = collection.name + ' — Kinvai collections';
       result.description = (collection.tagline || collection.story || 'Explore ' + collection.name + ' digital products from Kinvai.').slice(0, 320);
       result.canonical = siteUrl + '/collections/' + encodeURIComponent(collection.slug);
