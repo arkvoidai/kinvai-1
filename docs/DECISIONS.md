@@ -152,7 +152,6 @@ This file records every engineering decision and assumption made across Kinvai b
    - Shared-element transitions attach a deterministic `viewTransitionName` (`kv-cover-<slug>`) strictly to the active visible product cover on `ProductCard` and `ProductDetailPage`, with CSS reduced-motion disable and `PageTransition` fade fallback when unsupported.
    - `usePageMeta` updates `document.title` and upserts a single canonical `<link rel="canonical">` on every route change (removing duplicates/stale links and omitting canonical on `noindex` routes such as 404 or archived owner views).
 
-
 ## Prompt 7: Account, Library, Orders & Profile
 
 1. **Auth boot and guarded routes**
@@ -174,7 +173,6 @@ This file records every engineering decision and assumption made across Kinvai b
 
 5. **No schema or production-data changes**
    - Existing Supabase tables, RLS policies, triggers, and indexes support this prompt. No migration or live database mutation was performed for this implementation.
-
 
 ## Prompt 8: Checkout, Payments & Signed Downloads
 
@@ -225,7 +223,6 @@ This file records every engineering decision and assumption made across Kinvai b
    - No migrations, schema edits, policy changes or live catalogue data mutations were performed as part of Prompt 9. Existing tables, admin RLS and the two existing buckets are used.
    - Exact owner flow, non-admin 404, signed download and storefront cover propagation checks are documented in docs/ADMIN_TEST.md. Local TypeScript/lint, unit tests, build, browser QA, real TUS transfer and Gemini calls still require execution in the configured project environment.
 
-
 ## Prompt 10: Content, SEO, Performance, QA & Launch
 
 1. **Content and legal boundaries**
@@ -256,14 +253,12 @@ This file records every engineering decision and assumption made across Kinvai b
 5. **Explicit verification boundary**
    - No local repository runtime was available in this connector session. bun run lint, bun run test, bun run build, Playwright/browser QA, breakpoint inspection, gzip bundle measurement, production deploy and live provider/download flows remain NOT VERIFIED. Build is deliberately expected to fail until the marked owner/legal copy is completed.
 
-
 ## Owner-directed storefront wording — 2026-11-24
 
 - The owner instructed that the public-facing business name be **Arkvoid Inc.** This is used as a display/business name only. The site copy does not state or imply a verified incorporation jurisdiction, company number, registered office, or corporate status.
 - Homepage/About wording was narrowed to avoid claims that every product is independently tested, contains a prescribed documentation pack, is watermark-free, or receives lifetime updates. Product pages remain the source of truth for included files, formats, requirements and version.
 - The purchase FAQ now describes access to the purchased version and does not promise a fixed update schedule. Refund FAQ wording points customers to the Refunds page and applicable consumer rights rather than asserting an unverified fixed refund window.
 - Privacy, Terms and Refunds still contain unresolved factual/legal details. The production owner-marker gate remains enabled. Do not publish these drafts as approved legal terms or bypass the gate until the missing operational facts are verified and qualified legal review is complete.
-
 
 ## Production policy-copy completion — 2026-11-24
 
@@ -272,3 +267,15 @@ This file records every engineering decision and assumption made across Kinvai b
 - Owner delegated a conservative 14-calendar-day store refund-request period. The page preserves longer/non-waivable consumer rights, does not promise provider processing times, and distinguishes technical/payment issues from change-of-mind requests.
 - Terms avoid inventing a governing jurisdiction, registered address, corporate status, tax treatment or provider SLA. Mandatory legal rights are expressly preserved. This is customer-facing operational copy, not a claim of lawyer approval or legal advice.
 - The production owner-marker gate remains enabled. No marker was removed by weakening the checker; the source pages were rewritten with explicit policy language and the evidence ledger retains external legal/operational follow-ups.
+
+## Supabase live catalogue, auth session and preview-unlock work — 2026-11-24
+
+- Live database inspection found 20 published products and 4 active collections. The deployed schema has the expected product-to-collection, product-media and product-relations foreign keys. No table, RPC, RLS policy, bucket or migration was changed.
+- The configured database does not currently expose `public.search_products(p_query, p_limit)`. Search now tries that RPC for environments where it exists, then falls back to a direct, published-products table query on RPC failure. A failed query cannot trigger seed results while any live published rows remain.
+- `getProducts` now uses one exact-count products query, with a joined collection filter for collection slugs rather than a separate per-request collection lookup. Repository fallbacks check live row counts and surface real errors rather than silently returning seed rows over a populated live catalogue.
+- Production server config forces seed fallback off. Preview/development may continue to use seed data when the live catalogue is truly empty and fallback is enabled.
+- Product detail now reads collection, product media and relation rows through the existing foreign-key joins. Archived product access still relies on existing RLS and a non-revoked entitlement check (admins remain allowed).
+- The Supabase profiles table has no client INSERT policy and no profile-creation trigger. First-login profile sync therefore uses a server-only service-role route after bearer-token verification. The route only upserts `id`, `display_name` and `avatar_url`; it never writes `is_admin`. The browser continues to read `is_admin` only for role-aware UI.
+- OAuth session restoration remains owned by the PKCE-configured Supabase singleton (`detectSessionInUrl: true`). `onAuthStateChange` now synchronously updates React auth state and does no database work; profile sync/read runs from an effect keyed by user ID. The callback page does not manually exchange the OAuth code.
+- Cart entries retain per-product live/seed provenance. When the active entitlement list loads, already-owned IDs are removed from persisted cart state. Existing guest wishlist merge remains deduplicated, and tests cover wishlist merge, owned-cart reconciliation, strict redirect validation and nullable live-product parsing.
+- `ProductPreviewModal` was already integrated with the product cover, Inspect Preview action, gallery thumbnails and peek tiles, including its three tabs and accessible dialog behavior. This pass preserves that implementation and fixes the modal's immediate post-add state so it shows `Added` for the 650ms confirmation window.

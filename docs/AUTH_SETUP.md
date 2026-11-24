@@ -81,3 +81,8 @@ The callback route waits for the singleton client's URL/session initialization a
 5. Sign out using the account confirmation dialog, then confirm protected routes request sign-in again.
 
 If the provider reports a redirect mismatch, compare the exact origin and path in the browser address bar with the Supabase Redirect URLs allowlist and verify that Google's authorized redirect URI is the Supabase `/auth/v1/callback` value above.
+
+
+## First-login profile synchronization
+
+The browser client does not insert into `profiles` directly because the table has no client INSERT policy. After Supabase emits the initial/restored session, the React auth provider runs `POST /api/profile/sync` from an effect keyed by the signed-in user ID. The server verifies the Bearer token with Supabase Auth, then upserts only `id`, `display_name` and `avatar_url` derived from the verified user's metadata. Existing profile rows are left unchanged, and `is_admin` is never accepted from browser or OAuth metadata. The app then reads the profile through the caller's own RLS-protected session.

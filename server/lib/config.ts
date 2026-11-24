@@ -39,7 +39,9 @@ export function getPublicServerConfig(): ServerPublicConfig {
   const paypalConfigured = Boolean(
     process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET
   );
-  const allowSeedFallback = parseBool(process.env.ALLOW_SEED_FALLBACK, true);
+  const isProduction = process.env.VERCEL_ENV === 'production' || (process.env.NODE_ENV === 'production' && process.env.VERCEL_ENV !== 'preview');
+  // A production data failure must never silently turn seed fixtures into a purchasable catalogue.
+  const allowSeedFallback = isProduction ? false : parseBool(process.env.ALLOW_SEED_FALLBACK, true);
 
   return {
     siteUrl,

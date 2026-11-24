@@ -40,3 +40,15 @@ describe('buildOAuthRedirectUrl', () => {
     ).toBe('https://preview.run.app/auth/callback?next=%2Faccount');
   });
 });
+
+
+describe('validateNextPath rejects malformed and script-like paths', () => {
+  it.each(['//evil.com', 'https://evil.com', 'javascript:alert(1)', '/\\\\evil.com', '/auth/callback?code=abc'])(
+    'rejects %s',
+    (path) => expect(validateNextPath(path)).toBe('/account')
+  );
+
+  it('preserves an approved route query and hash', () => {
+    expect(validateNextPath('/account?tab=library#downloads')).toBe('/account?tab=library#downloads');
+  });
+});

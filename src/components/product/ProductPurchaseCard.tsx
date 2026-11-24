@@ -1,5 +1,4 @@
 import { type MouseEvent, type RefObject } from 'react';
-import { motion } from 'motion/react';
 import {
   ArrowRight,
   Check,
@@ -12,7 +11,6 @@ import {
 } from 'lucide-react';
 import { getProductDescription } from '../../lib/data/format';
 import type { Collection, Product, RatingStats } from '../../lib/data/types';
-import { useReducedMotion } from '../../lib/motion';
 import { resolvePurchaseState } from '../../lib/product/productHelpers';
 import { Accordion, Button, IconButton, PriceTag, RatingStars, TagPill } from '../primitives';
 
@@ -38,28 +36,7 @@ export interface ProductPurchaseCardProps {
  * Animated 600ms drawn check SVG shown when "Add to cart" morphs to "Added".
  */
 function DrawnCheckIcon() {
-  const reduced = useReducedMotion();
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 20 20"
-      fill="none"
-      aria-hidden="true"
-      className="text-success shrink-0"
-    >
-      <motion.path
-        d="M4.2 10.6L8.2 14.5L16 6.2"
-        stroke="currentColor"
-        strokeWidth="2.3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        initial={reduced ? { pathLength: 1, opacity: 1 } : { pathLength: 0, opacity: 0.4 }}
-        animate={{ pathLength: 1, opacity: 1 }}
-        transition={{ duration: reduced ? 0.01 : 0.48, ease: [0.2, 0.7, 0.2, 1] }}
-      />
-    </svg>
-  );
+  return <Check size={18} strokeWidth={2.2} className="text-success shrink-0" aria-hidden="true" />;
 }
 
 const ASSURANCE_ROWS = [
@@ -206,7 +183,7 @@ export function ProductPurchaseCard({
               variant="primary"
               size="lg"
               fullWidth
-              to="/account"
+              to="/account?tab=library"
               icon={<Download size={18} strokeWidth={1.75} aria-hidden="true" />}
             >
               Download from your library

@@ -19,7 +19,7 @@ import {
 } from '../data/repository';
 import type { Collection, Product } from '../data/types';
 import { mergeWishlistIds, useWishlistIds, wishlistStore } from '../wishlist/wishlistStore';
-import { cartStore, useCartProductIds } from './cartStore';
+import { cartStore, reconcileCartProductIds, useCartProductIds } from './cartStore';
 
 export interface CartItem {
   productId: string;
@@ -85,7 +85,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [catalogueLoaded, setCatalogueLoaded] = useState(false);
 
   // Runtime cache of products passed directly to addToCart (in case a product isn't in initial 48)
-  const [productCache, setProductCache] = useState<Record<string, Product>>({});
+  const [productCache, setProductCache] = useState<Record<string, { product: Product; isPreviewData: boolean }>>({});
 
   const [cartOpen, setCartOpen] = useState(false);
   const [commandSearchOpen, setCommandSearchOpen] = useState(false);
@@ -125,8 +125,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     Promise.all([getLibrary(user.id), getWishlist(user.id)])
       .then(async ([entitlements, remoteWishlist]) => {
         if (!active) return;
-        const owned = entitlements.map((e) => e.product_id);
+        const owned = entitlements.filter((e) => e.revoked_at === null).map((e) => e.product_id);
         setOwnedIds(owned);
+        const reconciledCart = reconcileCartProductIds(cartStore.getSnapshot(), owned);
+        if (reconciledCart.length !== cartStore.getSnapshot().length) cartStore.replace(reconciledCart);
 
         const remoteIds = remoteWishlist.map((w) => w.product_id);
         const guestIds = wishlistStore.getGuestLocalIds();
@@ -151,23 +153,25 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [user, authLoading]);
 
   const productById = useMemo(() => {
-    const map = new Map<string, Product>();
-    for (const p of catalogueProducts) {
-      map.set(p.id, p);
+    const map = new Map<string, { product: Product; isPreviewData: boolean }>();
+    for (const product of catalogueProducts) {
+      map.set(product.id, { product, isPreviewData: catalogueIsPreview });
     }
-    for (const p of Object.values(productCache)) {
-      if (!map.has(p.id)) {
-        map.set(p.id, p);
-      }
+    // A direct product-detail result has its own provenance; do not let another
+    // catalogue request's seed fallback lock an otherwise-live cart item.
+    for (const [id, cached] of Object.entries(productCache)) {
+      const current = map.get(id);
+      if (!current || (current.isPreviewData && !cached.isPreviewData)) map.set(id, cached);
     }
     return map;
-  }, [catalogueProducts, productCache]);
+  }, [catalogueProducts, catalogueIsPreview, productCache]);
 
   const items = useMemo<CartItem[]>(() => {
     const resolved: CartItem[] = [];
     for (const productId of cartProductIds) {
-      const prod = productById.get(productId);
-      if (prod) {
+      const entry = productById.get(productId);
+      if (entry) {
+        const { product: prod, isPreviewData } = entry;
         resolved.push({
           productId: prod.id,
           slug: prod.slug,
@@ -178,11 +182,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
           collectionId: prod.collection_id,
           coverPath: prod.cover_path,
           fileFormats: prod.file_formats,
-          isPreviewData: catalogueIsPreview,
+          isPreviewData,
           product: prod,
         });
       } else if (!catalogueLoaded) {
-        // Reserve stable slot while initial catalogue resolves
         resolved.push({
           productId,
           slug: '',
@@ -198,7 +201,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
     }
     return resolved;
-  }, [cartProductIds, productById, catalogueIsPreview, catalogueLoaded]);
+  }, [cartProductIds, productById, catalogueLoaded]);
 
   const openSignInSheet = useCallback((nextPath?: string) => {
     const fallback =
@@ -227,7 +230,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (ownedIds.includes(product.id)) {
         return false;
       }
-      setProductCache((prev) => (prev[product.id] ? prev : { ...prev, [product.id]: product }));
+      setProductCache((prev) => {
+        const existing = prev[product.id];
+        if (existing && (!existing.isPreviewData || isPreviewData)) return prev;
+        return { ...prev, [product.id]: { product, isPreviewData } };
+      });
       const added = cartStore.add(product.id);
       if (added && flightOrigin) {
         cartStore.triggerFlight(flightOrigin.x, flightOrigin.y);
@@ -242,7 +249,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (isPreviewData || ownedIds.includes(product.id)) {
         return false;
       }
-      setProductCache((prev) => (prev[product.id] ? prev : { ...prev, [product.id]: product }));
+      setProductCache((prev) => {
+        const existing = prev[product.id];
+        if (existing && (!existing.isPreviewData || isPreviewData)) return prev;
+        return { ...prev, [product.id]: { product, isPreviewData } };
+      });
       cartStore.replace([product.id]);
       return true;
     },

@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, FolderCheck, Heart, Plus } from 'lucide-react';
 import { useCart } from '../../lib/cart/CartProvider';
@@ -81,6 +81,11 @@ export function ProductCard({
     setCartOpen,
   } = useCart();
   const { toast } = useToast();
+  const [justAdded, setJustAdded] = useState(false);
+  const addedTimerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (addedTimerRef.current !== null) window.clearTimeout(addedTimerRef.current);
+  }, []);
 
   const saved = isSaved(product.id);
   const inCart = isInCart(product.id);
@@ -122,10 +127,17 @@ export function ProductCard({
       return;
     }
     const rect = e.currentTarget.getBoundingClientRect();
-    addToCart(product, false, {
+    const added = addToCart(product, false, {
       x: rect.left + rect.width / 2,
       y: rect.top + rect.height / 2,
     });
+    if (!added) {
+      toast({ title: "That didn't work.", description: 'Try again, or write to heyarkvoid@gmail.com.', tone: 'error' });
+      return;
+    }
+    setJustAdded(true);
+    if (addedTimerRef.current !== null) window.clearTimeout(addedTimerRef.current);
+    addedTimerRef.current = window.setTimeout(() => setJustAdded(false), 650);
     toast({
       title: `Added ${product.name}`,
       description: '1 licence. Yours for life.',
@@ -143,7 +155,7 @@ export function ProductCard({
     >
       {owned ? (
         <Link
-          to="/account"
+          to="/account?tab=library"
           viewTransition
           onClick={(e) => e.stopPropagation()}
           className={`inline-flex items-center justify-center gap-1.5 rounded-full bg-success-bg text-success border border-success/20 font-medium hover:opacity-90 transition-opacity kv-press focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2 ${
@@ -166,7 +178,12 @@ export function ProductCard({
               : 'min-h-[42px] px-3 sm:px-4 text-xs sm:text-sm flex-1'
           }`}
         >
-          {inCart ? (
+          {justAdded ? (
+            <>
+              <Check size={15} strokeWidth={2.2} className="text-success shrink-0" aria-hidden="true" />
+              <span className="truncate">Added</span>
+            </>
+          ) : inCart ? (
             <>
               <Check size={15} strokeWidth={2} className="text-success shrink-0" aria-hidden="true" />
               <span className="truncate">In cart</span>

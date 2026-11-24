@@ -1,4 +1,4 @@
-name: TypeScript check
+name: Production type, build, and test
 
 on:
   pull_request:
@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  typecheck:
-    name: npx tsc --noEmit
+  verify:
+    name: TypeScript, production build, and Vitest
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -22,3 +22,7 @@ jobs:
         run: bun install --frozen-lockfile
       - name: TypeScript validation
         run: npx tsc --noEmit
+      - name: Production build
+        run: npm run build
+      - name: Unit tests
+        run: npm test

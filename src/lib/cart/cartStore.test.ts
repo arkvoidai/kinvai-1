@@ -4,6 +4,7 @@ import {
   addProductIdUnique,
   CART_SCHEMA_VERSION,
   parsePersistedCart,
+  reconcileCartProductIds,
   removeProductId,
   serializePersistedCart,
 } from './cartStore';
@@ -48,8 +49,8 @@ test('addProductIdUnique enforces one licence per product', () => {
   assert.deepEqual(removed, ['prod-2']);
 });
 
-test('mergeWishlistIds combines guest and remote IDs and returns only missing delta', () => {
-  const { merged, toInsert } = mergeWishlistIds(['p1', 'p2', 'p3'], ['p2', 'p4']);
+test('mergeWishlistIds combines and deduplicates guest and remote IDs and returns only missing delta', () => {
+  const { merged, toInsert } = mergeWishlistIds(['p1', 'p2', 'p3', 'p1'], ['p2', 'p4', 'p4']);
   assert.deepEqual(merged, ['p2', 'p4', 'p1', 'p3']);
   assert.deepEqual(toInsert, ['p1', 'p3']);
 });
@@ -99,4 +100,12 @@ test('buildOAuthRedirectUrl builds clean callback URL with encoded next path', (
     'http://localhost:3000'
   );
   assert.equal(preview, 'http://localhost:3000/auth/callback?next=%2Faccount');
+});
+
+
+test('reconcileCartProductIds removes already-owned items and deduplicates the remaining cart', () => {
+  assert.deepEqual(
+    reconcileCartProductIds(['owned-1', 'live-1', 'live-1', 'owned-2', 'live-2'], ['owned-1', 'owned-2']),
+    ['live-1', 'live-2']
+  );
 });
