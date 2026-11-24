@@ -28,23 +28,42 @@ function allowSeedFallback(): boolean {
   return getPublicConfig().flags.allowSeedFallback;
 }
 
-function parseArray<T>(schema: z.ZodType<T>, raw: unknown): T[] {
-  const result = z.array(schema).safeParse(raw);
-  if (result.success) {
-    return result.data;
+function logRepositoryValidation(label: string, error: z.ZodError): void {
+  if (import.meta.env.DEV) {
+    console.error(`[kinvai-data] Zod validation failed for ${label}.`, error.issues);
   }
-  // Validate row-by-row so one malformed legacy row never hides valid rows
+}
+
+function parseArray<T>(schema: z.ZodType<T>, raw: unknown, label = 'repository rows'): T[] {
+  const result = z.array(schema).safeParse(raw);
+  if (result.success) return result.data;
+
+  // Report all invalid row paths clearly, then preserve otherwise-valid live rows.
   if (Array.isArray(raw)) {
     const valid: T[] = [];
-    for (const item of raw) {
+    raw.forEach((item, index) => {
       const parsed = schema.safeParse(item);
-      if (parsed.success) {
-        valid.push(parsed.data);
-      }
-    }
+      if (parsed.success) valid.push(parsed.data);
+      else logRepositoryValidation(`${label}[${index}]`, parsed.error);
+    });
     return valid;
   }
+
+  logRepositoryValidation(label, result.error);
   return [];
+}
+
+function parseOne<T>(schema: z.ZodType<T>, raw: unknown, label: string): T | null {
+  const parsed = schema.safeParse(raw);
+  if (parsed.success) return parsed.data;
+  logRepositoryValidation(label, parsed.error);
+  return null;
+}
+
+function logRepositoryError(label: string, error: unknown): void {
+  if (import.meta.env.DEV) {
+    console.error(`[kinvai-data] ${label} failed.`, error);
+  }
 }
 
 /**
@@ -166,12 +185,16 @@ export async function getCollections(): Promise<DataEnvelope<Collection[]>> {
       if (error) {
         queryError = error.message || 'Could not load collections.';
       } else if (data && data.length > 0) {
-        const parsed = parseArray(CollectionSchema, data);
-        if (parsed.length > 0) {
-          return { data: parsed, source: 'supabase', isPreviewData: false };
-        }
+        const parsed = parseArray(CollectionSchema, data, 'collections');
+        return {
+          data: parsed,
+          source: 'supabase',
+          isPreviewData: false,
+          ...(parsed.length < data.length ? { error: 'Some collection rows could not be read.' } : {}),
+        };
       }
     } catch (err) {
+      logRepositoryError('getCollections', err);
       queryError = err instanceof Error ? err.message : 'Could not load collections.';
     }
   }
@@ -198,12 +221,14 @@ export async function getCollection(slug: string): Promise<DataEnvelope<Collecti
       if (error) {
         queryError = error.message || 'Could not load collection.';
       } else if (data) {
-        const parsed = CollectionSchema.safeParse(data);
-        if (parsed.success) {
-          return { data: parsed.data, source: 'supabase', isPreviewData: false };
+        const parsed = parseOne(CollectionSchema, data, 'collection');
+        if (parsed) {
+          return { data: parsed, source: 'supabase', isPreviewData: false };
         }
+        return { data: null, source: 'supabase', isPreviewData: false, error: 'The collection data could not be read.' };
       }
     } catch (err) {
+      logRepositoryError('getCollection', err);
       queryError = err instanceof Error ? err.message : 'Could not load collection.';
     }
   }
@@ -347,8 +372,8 @@ export async function getProducts(params: ProductQueryParams = {}): Promise<Pagi
                 params.priceMax !== undefined ||
                 (params.q && params.q.trim().length > 0)
             );
-            if (data.length > 0 || hasFilters) {
-              const parsed = parseArray(ProductSchema, data);
+            if (data.length > 0 || hasFilters || (count ?? 0) > 0) {
+              const parsed = parseArray(ProductSchema, data, 'products');
               const total = count ?? parsed.length;
               return {
                 items: parsed,
@@ -364,6 +389,7 @@ export async function getProducts(params: ProductQueryParams = {}): Promise<Pagi
         }
       }
     } catch (err) {
+      logRepositoryError('getProducts', err);
       queryError = err instanceof Error ? err.message : 'Could not load products.';
     }
   }
@@ -396,14 +422,41 @@ export async function getFeatured(limit = 6): Promise<DataEnvelope<Product[]>> {
         .order('featured_rank', { ascending: true, nullsFirst: false })
         .limit(limit);
 
-      if (!error && data && data.length > 0) {
-        const parsed = parseArray(ProductSchema, data);
-        if (parsed.length > 0) {
-          return { data: parsed, source: 'supabase', isPreviewData: false };
+      if (error) {
+        logRepositoryError('getFeatured query', error);
+        // Do not show seed product cards when the published live catalogue is available.
+        const { count, error: countError } = await client
+          .from('products')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'published');
+        if (countError) logRepositoryError('getFeatured published count', countError);
+        if ((count ?? 0) > 0) {
+          return {
+            data: [],
+            source: 'supabase',
+            isPreviewData: false,
+            error: 'Featured products could not be loaded from Supabase.',
+          };
         }
+      } else if (data) {
+        const parsed = parseArray(ProductSchema, data, 'featured products');
+        if (data.length > 0) {
+          return {
+            data: parsed,
+            source: 'supabase',
+            isPreviewData: false,
+            ...(parsed.length < data.length ? { error: 'Some featured products could not be read.' } : {}),
+          };
+        }
+        const { count, error: countError } = await client
+          .from('products')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'published');
+        if (countError) logRepositoryError('getFeatured published count', countError);
+        if ((count ?? 0) > 0) return { data: [], source: 'supabase', isPreviewData: false };
       }
-    } catch {
-      // Fallback below
+    } catch (err) {
+      logRepositoryError('getFeatured', err);
     }
   }
 
@@ -440,13 +493,14 @@ export async function getRelated(
           .eq('status', 'published');
 
         if (!prodError && prodRows && prodRows.length > 0) {
-          const parsed = parseArray(ProductSchema, prodRows);
+          const parsed = parseArray(ProductSchema, prodRows, 'related products');
           const ordered = ids
             .map((id) => parsed.find((p) => p.id === id))
             .filter((p): p is Product => Boolean(p));
           if (ordered.length > 0) {
             return { data: ordered, source: 'supabase', isPreviewData: false };
           }
+          return { data: [], source: 'supabase', isPreviewData: false, error: 'Related product rows could not be read.' };
         }
       }
 
@@ -461,15 +515,18 @@ export async function getRelated(
           .limit(24);
 
         if (!sameColErr && sameColRows && sameColRows.length > 0) {
-          const parsed = parseArray(ProductSchema, sameColRows);
+          const parsed = parseArray(ProductSchema, sameColRows, 'same-collection related products');
           const ranked = rankRelatedProducts(currentProduct, parsed, limit);
           return { data: ranked, source: 'supabase', isPreviewData: false };
         }
       }
-    } catch {
-      // Fallback below
+    } catch (err) {
+      logRepositoryError('getRelated', err);
     }
   }
+
+  // A Supabase-backed product must never be supplemented with unrelated seed cards.
+  if (currentProduct) return { data: [], source: 'supabase', isPreviewData: false };
 
   if (allowSeedFallback()) {
     const current = currentProduct ?? SEED_PRODUCTS.find((p) => p.id === productId);
@@ -506,11 +563,12 @@ export async function getProductBySlug(
       if (error) {
         queryError = error.message || 'Could not load product.';
       } else if (prodRow) {
-        const parsedProduct = ProductSchema.safeParse(prodRow);
-        if (parsedProduct.success) {
-          const product = parsedProduct.data;
+        const product = parseOne(ProductSchema, prodRow, 'product detail');
+        if (!product) {
+          return { data: null, source: 'supabase', isPreviewData: false, error: 'The product data could not be read.' };
+        }
 
-          // Archived products are visible ONLY to signed-in owners (or admins)
+        // Archived products are visible ONLY to signed-in owners (or admins)
           if (product.status === 'archived') {
             const hasAccess =
               Boolean(options?.isAdmin) ||
@@ -535,15 +593,17 @@ export async function getProductBySlug(
             options?.userId ? getUserProductReview(options.userId, product.id) : Promise.resolve(null),
           ]);
 
-          const collectionParsed = colRes.data ? CollectionSchema.safeParse(colRes.data) : null;
+          const collectionParsed = colRes.data ? parseOne(CollectionSchema, colRes.data, 'product collection') : null;
+          if (colRes.error) logRepositoryError('getProductBySlug collection', colRes.error);
+          if (mediaRes.error) logRepositoryError('getProductBySlug media', mediaRes.error);
           const media: ProductMedia[] = mediaRes.data
-            ? parseArray(ProductMediaSchema, mediaRes.data)
+            ? parseArray(ProductMediaSchema, mediaRes.data, 'product media')
             : [];
 
           return {
             data: {
               product,
-              collection: collectionParsed?.success ? collectionParsed.data : null,
+              collection: collectionParsed,
               media,
               related: relatedRes.data,
               ratingStats: stats,
@@ -553,12 +613,12 @@ export async function getProductBySlug(
             source: 'supabase',
             isPreviewData: false,
           };
-        }
       } else if (!allowSeedFallback()) {
         // Genuine 404 (query succeeded with no matching row)
         return { data: null, source: 'supabase', isPreviewData: false };
       }
     } catch (err) {
+      logRepositoryError('getProductBySlug', err);
       queryError = err instanceof Error ? err.message : 'Could not load product.';
     }
   }
@@ -619,7 +679,7 @@ export async function searchProducts(
       if (error) {
         queryError = error.message || 'Search could not be completed.';
       } else if (Array.isArray(data)) {
-        const parsed = parseArray(ProductSchema, data);
+        const parsed = parseArray(ProductSchema, data, 'search products');
         if (parsed.length > 0) {
           return { data: parsed, source: 'supabase', isPreviewData: false };
         }
@@ -642,6 +702,7 @@ export async function searchProducts(
       if (signal?.aborted) {
         return { data: [], source: 'empty', isPreviewData: false };
       }
+      logRepositoryError('searchProducts', err);
       queryError = err instanceof Error ? err.message : 'Search could not be completed.';
     }
   }
@@ -664,10 +725,11 @@ export async function getRatingStats(productId: string): Promise<RatingStats | n
       .maybeSingle();
 
     if (error || !data) return null;
-    const parsed = RatingStatsSchema.safeParse(data);
-    if (!parsed.success || parsed.data.review_count === 0) return null;
-    return parsed.data;
-  } catch {
+    const parsed = parseOne(RatingStatsSchema, data, 'product rating stats');
+    if (!parsed || parsed.review_count === 0) return null;
+    return parsed;
+  } catch (err) {
+    logRepositoryError('getRatingStats', err);
     return null;
   }
 }
@@ -684,8 +746,9 @@ export async function getApprovedReviews(productId: string): Promise<Review[]> {
       .order('created_at', { ascending: false });
 
     if (error || !data) return [];
-    return parseArray(ReviewSchema, data);
-  } catch {
+    return parseArray(ReviewSchema, data, 'approved reviews');
+  } catch (err) {
+    logRepositoryError('getApprovedReviews', err);
     return [];
   }
 }
@@ -705,9 +768,9 @@ export async function getUserProductReview(
       .maybeSingle();
 
     if (error || !data) return null;
-    const parsed = ReviewSchema.safeParse(data);
-    return parsed.success ? parsed.data : null;
-  } catch {
+    return parseOne(ReviewSchema, data, 'user product review');
+  } catch (err) {
+    logRepositoryError('getUserProductReview', err);
     return null;
   }
 }
@@ -764,10 +827,10 @@ export async function submitProductReview(input: {
       };
     }
 
-    const parsed = data ? ReviewSchema.safeParse(data) : null;
+    const parsed = data ? parseOne(ReviewSchema, data, 'submitted product review') : null;
     return {
-      review: parsed?.success
-        ? parsed.data
+      review: parsed
+        ? parsed
         : {
             user_id: input.userId,
             product_id: input.productId,
@@ -779,6 +842,7 @@ export async function submitProductReview(input: {
           },
     };
   } catch (err) {
+    logRepositoryError('submitProductReview', err);
     return {
       review: null,
       error: mapReviewSubmitError(
@@ -800,8 +864,9 @@ export async function getRecentApprovedReviews(limit = 6): Promise<Review[]> {
       .limit(limit);
 
     if (error || !data) return [];
-    return parseArray(ReviewSchema, data);
-  } catch {
+    return parseArray(ReviewSchema, data, 'reviews');
+  } catch (err) {
+    logRepositoryError('getRecentApprovedReviews', err);
     return [];
   }
 }
@@ -817,8 +882,9 @@ export async function getLibrary(userId: string): Promise<Entitlement[]> {
       .is('revoked_at', null);
 
     if (error || !data) return [];
-    return parseArray(EntitlementSchema, data);
-  } catch {
+    return parseArray(EntitlementSchema, data, 'library entitlements');
+  } catch (err) {
+    logRepositoryError('getLibrary', err);
     return [];
   }
 }
@@ -833,8 +899,9 @@ export async function getWishlist(userId: string): Promise<WishlistItem[]> {
       .eq('user_id', userId);
 
     if (error || !data) return [];
-    return parseArray(WishlistItemSchema, data);
-  } catch {
+    return parseArray(WishlistItemSchema, data, 'wishlist items');
+  } catch (err) {
+    logRepositoryError('getWishlist', err);
     return [];
   }
 }

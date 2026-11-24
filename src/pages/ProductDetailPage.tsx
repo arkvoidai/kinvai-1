@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { MobileStickyBuyBar } from '../components/product/MobileStickyBuyBar';
 import { ProductEditorialSections } from '../components/product/ProductEditorialSections';
 import { ProductGallery } from '../components/product/ProductGallery';
-import { ProductLightbox } from '../components/product/ProductLightbox';
+import { ProductPreviewModal, type ProductPreviewTab } from '../components/product/ProductPreviewModal';
 import { ProductPurchaseCard } from '../components/product/ProductPurchaseCard';
 import { Breadcrumb, Button, Skeleton, TagPill, Tile, useToast } from '../components/primitives';
 import { ShopErrorTile } from '../components/shop/ShopErrorTile';
@@ -12,7 +12,6 @@ import { useCart } from '../lib/cart/CartProvider';
 import { getProductBySlug } from '../lib/data/repository';
 import type { ProductDetail } from '../lib/data/types';
 import { getProductOgImageUrl } from '../lib/media/imagePipeline';
-import { collectLightboxImages } from '../lib/product/productHelpers';
 import { usePageMeta } from '../lib/seo/usePageMeta';
 
 function useIsDesktop(): boolean {
@@ -56,13 +55,14 @@ export function ProductDetailPage() {
   const [loading, setLoading] = useState(true);
   const [reloadNonce, setReloadNonce] = useState(0);
 
-  // Add-to-cart 600ms drawn-check morph state
+  // Add-to-cart 650ms drawn-check morph state
   const [justAdded, setJustAdded] = useState(false);
   const addedTimerRef = useRef<number | null>(null);
 
-  // Lightbox state
-  const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [lightboxIndex, setLightboxIndex] = useState(0);
+  // Accessible multi-tab product preview modal state
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewTab, setPreviewTab] = useState<ProductPreviewTab>('gallery');
+  const [previewIndex, setPreviewIndex] = useState(0);
 
   // Mobile sticky buy bar visibility (appears once primary purchase buttons leave viewport)
   const purchaseAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -89,7 +89,7 @@ export function ProductDetailPage() {
     let active = true;
     setLoading(true);
     setLoadError(null);
-    setLightboxOpen(false);
+    setPreviewOpen(false);
     setJustAdded(false);
 
     getProductBySlug(slug, {
@@ -164,11 +164,6 @@ export function ProductDetailPage() {
       window.removeEventListener('resize', scheduleCheck);
     };
   }, [isDesktop, loading, detail]);
-
-  const lightboxImages = useMemo(() => {
-    if (!detail) return [];
-    return collectLightboxImages(detail.product, detail.media);
-  }, [detail]);
 
   const handleBack = useCallback(() => {
     if (typeof window !== 'undefined' && window.history.length > 1) {
@@ -267,7 +262,7 @@ export function ProductDetailPage() {
         if (isDesktop) {
           setCartOpen(true);
         }
-      }, 600);
+      }, 650);
 
       toast({
         title: `Added ${prod.name}`,
@@ -298,9 +293,14 @@ export function ProductDetailPage() {
     navigate('/checkout');
   }, [navigate]);
 
-  const handleOpenLightbox = useCallback((index: number) => {
-    setLightboxIndex(index);
-    setLightboxOpen(true);
+  const handleClosePreview = useCallback(() => {
+    setPreviewOpen(false);
+  }, []);
+
+  const handleOpenPreview = useCallback((tab: ProductPreviewTab, index = 0) => {
+    setPreviewTab(tab);
+    setPreviewIndex(index);
+    setPreviewOpen(true);
   }, []);
 
   /* -------------------- LOADING SKELETON (Fixed geometry, zero layout shift) -------------------- */
@@ -403,7 +403,7 @@ export function ProductDetailPage() {
             onBack={handleBack}
             onToggleSave={handleToggleSave}
             onShare={handleShare}
-            onOpenLightbox={handleOpenLightbox}
+            onOpenPreview={handleOpenPreview}
           />
         </div>
 
@@ -445,20 +445,26 @@ export function ProductDetailPage() {
         onGoToCheckout={handleGoToCheckout}
       />
 
-      {/* Fullscreen Lightbox for available product_media images */}
-      <ProductLightbox
-        open={lightboxOpen}
-        images={lightboxImages}
-        activeIndex={lightboxIndex}
-        accent={collection?.accent}
-        productName={product.name}
-        onIndexChange={setLightboxIndex}
-        onClose={() => setLightboxOpen(false)}
+      <ProductPreviewModal
+        open={previewOpen}
+        product={product}
+        collection={collection}
+        media={media}
+        owned={owned}
+        inCart={inCart}
+        justAdded={justAdded}
+        isPreviewData={isPreviewData}
+        initialTab={previewTab}
+        initialIndex={previewIndex}
+        onClose={handleClosePreview}
+        onAddToCart={handleAddToCart}
+        onBuyNow={handleBuyNow}
+        onGoToCheckout={handleGoToCheckout}
       />
 
       {/* Sticky Mobile Purchase Bar (slides up once primary buttons leave viewport) */}
       <MobileStickyBuyBar
-        visible={stickyBarVisible && !lightboxOpen}
+        visible={stickyBarVisible && !previewOpen}
         product={product}
         isPreviewData={isPreviewData}
         owned={owned}

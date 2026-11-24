@@ -21,7 +21,7 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
       autoRefreshToken: true,
       detectSessionInUrl: true,
       flowType: 'pkce',
-      storageKey: 'kinvai.auth.session',
+      storageKey: 'kinvai-auth',
     },
   });
 

@@ -97,6 +97,7 @@ export function ProductCard({
     : undefined;
 
   const handleSave = (e: MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
     e.stopPropagation();
     const next = toggleSaved(product.id);
     toast({
@@ -107,6 +108,7 @@ export function ProductCard({
   };
 
   const handleAdd = (e: MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
     e.stopPropagation();
     if (isPreviewData) {
       toast({
