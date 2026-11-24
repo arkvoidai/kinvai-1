@@ -127,6 +127,32 @@
   }
 }
 
+
+/* Persimmon selection and understated native scrollbar */
+::selection {
+  background: rgba(255, 91, 31, 0.2);
+  color: var(--ink);
+}
+html {
+  scrollbar-color: rgba(255, 91, 31, 0.36) var(--page);
+  scrollbar-width: thin;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--page);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 91, 31, 0.28);
+  border: 3px solid var(--page);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 91, 31, 0.48);
+}
+
 /* Base Document Rules */
 html {
   background-color: var(--page);
@@ -233,11 +259,7 @@ p {
 
 /* Touch Press Scale & Fine Pointer Hover Discipline */
 .kv-press {
-  transition: transform var(--dur-fast) var(--ease-out-quint),
-    background-color var(--dur-fast) ease,
-    border-color var(--dur-fast) ease,
-    color var(--dur-fast) ease,
-    box-shadow var(--dur-fast) ease;
+  transition: transform var(--dur-fast) var(--ease-out-quint);
 }
 
 .kv-press:active:not(:disabled) {
