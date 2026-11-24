@@ -81,6 +81,7 @@ No schema migration is requested by Prompt 10. Confirm the existing Supabase pro
 
 - Production runtime: `NODE_ENV=production`.
 - Preview seed fallback: `ALLOW_SEED_FALLBACK=false`. Confirm the server-injected public flag is false.
+- Vercel Preview builds skip the owner-marker production gate; the production build (including the Cloud Run build command) enforces it.
 - Every published product must have at least one real active row in `product_files` and a real downloadable object in the private `product-files` bucket. Attach and test each file before publishing.
 - Set a real cover image and meaningful alt text for each published product.
 - Confirm product status, price in integer USD cents, `file_formats`, SEO title and description.
