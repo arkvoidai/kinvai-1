@@ -520,7 +520,6 @@ function FilesManager({ product, files, loading, onFilesChange }: {
   const { toast } = useToast();
   const uploadRef = useRef<{ abort: (shouldTerminate?: boolean) => Promise<void>; start: () => void } | null>(null);
   const pendingUploadRef = useRef<{ id: string; objectPath: string; checksum: string } | null>(null);
-  const pendingUploadRef = useRef<{ id: string; objectPath: string; checksum: string } | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [version, setVersion] = useState(product.version || '1.0');
   const [progress, setProgress] = useState(0);
@@ -534,8 +533,6 @@ function FilesManager({ product, files, loading, onFilesChange }: {
     if (!file) return;
     const schema = zFileSchema.safeParse({ name: file.name, size: file.size, type: file.type });
     if (!schema.success) { toast({ title: 'File not accepted', description: schema.error.issues[0]?.message, tone: 'error' }); return; }
-    if (uploadRef.current) void uploadRef.current.abort(true);
-    pendingUploadRef.current = null;
     if (uploadRef.current) void uploadRef.current.abort(true);
     pendingUploadRef.current = null;
     setSelectedFile(file);
