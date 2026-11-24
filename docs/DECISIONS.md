@@ -232,7 +232,7 @@ This file records every engineering decision and assumption made across Kinvai b
    - Reworked About, How it works, Support, Licence, Privacy, Terms and Refunds into distinct responsive bento compositions. The About page names Manish Talukdar and Arkvoid Inc.; unknown legal/business facts remain explicit [OWNER TO COMPLETE] placeholders.
    - Support FAQs are searchable and category-filtered. The support form submits to POST /api/contact, which uses Zod validation, same-origin checks, a honeypot, a per-IP rate limit and the existing contact_messages table. The UI only displays success after a successful database insert response.
    - How-it-works format compatibility is derived from the live published product file_formats values, with common reader examples. The product's own requirement list remains authoritative.
-   - A build-time guard scans src/ and server/ for unresolved [OWNER TO COMPLETE] and OWNER_CONFIRM markers. A production build is intentionally blocked until owner review resolves every marker.
+   - A build-time guard scans src/ and server/ for unresolved [OWNER TO COMPLETE] and OWNER_CONFIRM markers. A production build is intentionally blocked until owner review resolves every marker. Vercel Preview builds skip this production-only gate so the preview can be inspected while owner review is pending.
    - docs/LEGAL_REVIEW.md requires lawyer review of all three legal drafts. docs/CLAIMS_TO_CONFIRM.md lists unverified operating and commercial claims.
 
 2. **Server-rendered SEO**
