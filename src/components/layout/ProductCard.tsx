@@ -145,7 +145,7 @@ export function ProductCard({
         <Link
           to="/account"
           viewTransition
-          onClick={(e) => e.stopPropagation()
+          onClick={(e) => e.stopPropagation()}
           className={`inline-flex items-center justify-center gap-1.5 rounded-full bg-success-bg text-success border border-success/20 font-medium hover:opacity-90 transition-opacity kv-press focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2 ${
             compactMode
               ? 'min-h-[38px] px-3 text-xs'
