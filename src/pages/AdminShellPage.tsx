@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { BarChart3, Boxes, ClipboardList, Image, Inbox, Layers3, LogOut, MessageSquare, Settings, ShieldCheck, Star } from 'lucide-react';
+import { BarChart3, Boxes, ClipboardList, Image, Inbox, Layers3, LogOut, Settings, Star } from 'lucide-react';
 import { Skeleton } from '../components/primitives';
 import { useAuth } from '../lib/auth/AuthProvider';
 import { usePageMeta } from '../lib/seo/usePageMeta';
