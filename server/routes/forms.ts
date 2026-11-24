@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { createRateLimitMiddleware } from '../lib/rateLimit.ts';
+import { assertSameOrigin } from '../lib/requestSecurity.ts';
 import { getSupabaseAdmin } from '../services/supabaseAdmin.ts';
 
 export const formsRouter = Router();
@@ -30,6 +31,8 @@ export function validateNewsletterPayload(input: unknown) {
 }
 
 formsRouter.post('/newsletter', newsletterLimiter, async (req, res) => {
+  if (!assertSameOrigin(req, res)) return;
+
   const parsed = NewsletterBodySchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({

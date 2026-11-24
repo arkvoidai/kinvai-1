@@ -8,6 +8,7 @@ import { AuthCallbackPage } from '../pages/AuthCallbackPage';
 import {
   CartRedirectPage,
   CheckoutCancelledPage,
+  CheckoutFailedPage,
   CheckoutPage,
   CheckoutSuccessPage,
 } from '../pages/CheckoutPages';
@@ -52,8 +53,9 @@ export function AppRouter() {
           <Route path="/saved" element={<SavedPage />} />
           <Route path="/cart-redirect" element={<CartRedirectPage />} />
           <Route path="/checkout" element={<RequireAuth><CheckoutPage /></RequireAuth>} />
-          <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
+          <Route path="/checkout/success" element={<RequireAuth><CheckoutSuccessPage /></RequireAuth>} />
           <Route path="/checkout/cancelled" element={<CheckoutCancelledPage />} />
+          <Route path="/checkout/failed" element={<RequireAuth><CheckoutFailedPage /></RequireAuth>} />
           <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/about" element={<AboutPage />} />
