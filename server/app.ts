@@ -5,6 +5,7 @@ import path from 'node:path';
 import { getPublicServerConfig, serializePublicConfigScript } from './lib/config.ts';
 import { createRateLimitMiddleware } from './lib/rateLimit.ts';
 import { adminImageRouter } from './routes/adminImage.ts';
+import { adminRouter } from './routes/admin.ts';
 import { downloadsRouter } from './routes/downloads.ts';
 import { checkoutRouter } from './routes/checkout.ts';
 import { ordersRouter } from './routes/orders.ts';
@@ -182,6 +183,7 @@ export async function createApp(): Promise<Express> {
 
   // Admin image generation route mounts its own 10mb JSON parser & stealth admin check
   app.use('/api/admin/image', adminImageRouter);
+  app.use('/api/admin', adminRouter);
 
   // Standard JSON parsing for all other non-webhook API routes
   app.use(express.json({ limit: '1mb' }));
