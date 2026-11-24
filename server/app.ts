@@ -91,7 +91,7 @@ function baseSeo(pathname: string, siteUrl: string): SeoResult {
 }
 
 async function buildSeo(pathname: string): Promise<SeoResult> {
-  const routePath = pathname === '/' ? '/' : pathname.replace(/\\/+$/, '') || '/';
+  const routePath = pathname === '/' ? '/' : pathname.replace(/\/+$/, '') || '/';
   const { siteUrl, supabaseUrl } = getPublicServerConfig();
   const cached = routeCache.get(routePath);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
