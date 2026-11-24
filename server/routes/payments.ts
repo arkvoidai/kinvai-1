@@ -145,11 +145,6 @@ paymentsRouter.post('/razorpay/verify', verifyLimiter, async (req, res) => {
       return;
     }
 
-    if (order.status === 'paid') {
-      res.status(200).json({ ok: true, orderId: order.id, status: 'paid' });
-      return;
-    }
-
     let payment = await fetchRazorpayPayment(razorpay_payment_id);
     const checkOrderId = payment.order_id;
     const amount = Number(payment.amount);
@@ -190,7 +185,7 @@ paymentsRouter.post('/razorpay/verify', verifyLimiter, async (req, res) => {
       return;
     }
 
-    const { error: paidError } = await admin.rpc('mark_order_paid', {
+    const { data: paidStatus, error: paidError } = await admin.rpc('mark_order_paid', {
       p_order_id: order.id,
       p_provider: 'razorpay',
       p_provider_payment_id: razorpay_payment_id,
@@ -198,7 +193,7 @@ paymentsRouter.post('/razorpay/verify', verifyLimiter, async (req, res) => {
       p_currency: String(payment.currency),
     });
 
-    if (paidError) {
+    if (paidError || !['paid', 'already_paid'].includes(String(paidStatus))) {
       console.error(JSON.stringify({
         event: 'razorpay_mark_paid_failed',
         orderId: order.id,
@@ -282,7 +277,7 @@ paymentsRouter.post('/paypal/capture', captureLimiter, async (req, res) => {
       return;
     }
 
-    const { error: paidError } = await admin.rpc('mark_order_paid', {
+    const { data: paidStatus, error: paidError } = await admin.rpc('mark_order_paid', {
       p_order_id: order.id,
       p_provider: 'paypal',
       p_provider_payment_id: totals.captureId,
@@ -290,7 +285,7 @@ paymentsRouter.post('/paypal/capture', captureLimiter, async (req, res) => {
       p_currency: totals.currency,
     });
 
-    if (paidError) {
+    if (paidError || !['paid', 'already_paid'].includes(String(paidStatus))) {
       console.error(JSON.stringify({
         event: 'paypal_mark_paid_failed',
         orderId: order.id,

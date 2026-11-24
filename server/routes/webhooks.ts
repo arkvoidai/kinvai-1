@@ -111,7 +111,10 @@ async function findPayPalOrder(
   providerOrderId: string,
   appOrderId: string
 ): Promise<OrderRecord | null> {
-  if (providerOrderId) return findOrderByProviderOrderId(providerOrderId, 'paypal');
+  if (providerOrderId) {
+    const providerOrder = await findOrderByProviderOrderId(providerOrderId, 'paypal');
+    if (providerOrder) return providerOrder;
+  }
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(appOrderId)) {
     return null;
   }
@@ -190,14 +193,16 @@ async function handleRazorpayEvent(event: Record<string, unknown>): Promise<void
       throw new Error('razorpay_webhook_payment_mismatch');
     }
 
-    const { error } = await admin.rpc('mark_order_paid', {
+    const { data: paidStatus, error } = await admin.rpc('mark_order_paid', {
       p_order_id: order.id,
       p_provider: 'razorpay',
       p_provider_payment_id: paymentId,
       p_amount_cents: amount,
       p_currency: currency,
     });
-    if (error) throw new Error('razorpay_mark_paid_failed');
+    if (error || !['paid', 'already_paid'].includes(String(paidStatus))) {
+      throw new Error('razorpay_mark_paid_failed');
+    }
     return;
   }
 
@@ -299,14 +304,16 @@ async function handlePayPalEvent(event: Record<string, unknown>): Promise<void> 
       throw new Error('paypal_webhook_payment_mismatch');
     }
 
-    const { error } = await admin.rpc('mark_order_paid', {
+    const { data: paidStatus, error } = await admin.rpc('mark_order_paid', {
       p_order_id: order.id,
       p_provider: 'paypal',
       p_provider_payment_id: paymentId,
       p_amount_cents: amountCents,
       p_currency: currency,
     });
-    if (error) throw new Error('paypal_mark_paid_failed');
+    if (error || !['paid', 'already_paid'].includes(String(paidStatus))) {
+      throw new Error('paypal_mark_paid_failed');
+    }
     return;
   }
 
