@@ -160,3 +160,41 @@ export async function processWebhookWithLease(
     throw error;
   }
 }
+
+
+/** Extracts the capture ID from the refund resource's PayPal HATEOAS `up` link. */
+export function extractPayPalCaptureIdFromRefundResource(resource: unknown): string | null {
+  if (!resource || typeof resource !== 'object' || Array.isArray(resource)) return null;
+  const value = resource as Record<string, unknown>;
+
+  const supplementary = value.supplementary_data;
+  if (supplementary && typeof supplementary === 'object' && !Array.isArray(supplementary)) {
+    const related = (supplementary as Record<string, unknown>).related_ids;
+    if (related && typeof related === 'object' && !Array.isArray(related)) {
+      const captureId = (related as Record<string, unknown>).capture_id;
+      if (typeof captureId === 'string' && /^[A-Za-z0-9]{5,80}$/.test(captureId)) {
+        return captureId;
+      }
+    }
+  }
+
+  if (!Array.isArray(value.links)) return null;
+  for (const link of value.links) {
+    if (!link || typeof link !== 'object' || Array.isArray(link)) continue;
+    const candidate = link as Record<string, unknown>;
+    if (candidate.rel !== 'up' || typeof candidate.href !== 'string') continue;
+
+    try {
+      const url = new URL(candidate.href);
+      if (!['api-m.paypal.com', 'api.paypal.com', 'api-m.sandbox.paypal.com', 'api.sandbox.paypal.com'].includes(url.hostname)) {
+        continue;
+      }
+      const match = url.pathname.match(/^\/v2\/payments\/captures\/([A-Za-z0-9]{5,80})\/?$/);
+      if (match) return match[1];
+    } catch {
+      // Ignore malformed HATEOAS links and continue checking the remaining links.
+    }
+  }
+
+  return null;
+}

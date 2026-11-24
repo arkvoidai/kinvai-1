@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { verifyPayPalWebhook } from './paymentProviders';
 import {
   decimalAmountToCents,
+  extractPayPalCaptureIdFromRefundResource,
   paymentMatchesOrder,
   processWebhookOnce,
   processWebhookWithLease,
@@ -295,5 +296,35 @@ describe('retryable webhook processing leases', () => {
       )
     ).rejects.toBe(handlerError);
     expect(finish).toHaveBeenCalledOnce();
+  });
+});
+
+
+describe('PayPal refund resource references', () => {
+  it('extracts the capture ID from the refund HATEOAS up link', () => {
+    expect(extractPayPalCaptureIdFromRefundResource({
+      id: '1JU08902781691411',
+      links: [
+        { rel: 'self', href: 'https://api.paypal.com/v2/payments/refunds/1JU08902781691411' },
+        { rel: 'up', href: 'https://api.paypal.com/v2/payments/captures/2GG279541U471931P' },
+      ],
+    })).toBe('2GG279541U471931P');
+  });
+
+  it('prefers the explicit related capture ID when present', () => {
+    expect(extractPayPalCaptureIdFromRefundResource({
+      supplementary_data: { related_ids: { capture_id: '8VN12345AB678901C' } },
+      links: [{ rel: 'up', href: 'https://api.paypal.com/v2/payments/captures/DIFFERENT12345' }],
+    })).toBe('8VN12345AB678901C');
+  });
+
+  it('rejects arbitrary hosts, malformed URLs and unexpected paths', () => {
+    expect(extractPayPalCaptureIdFromRefundResource({
+      links: [{ rel: 'up', href: 'https://evil.example/v2/payments/captures/2GG279541U471931P' }],
+    })).toBeNull();
+    expect(extractPayPalCaptureIdFromRefundResource({
+      links: [{ rel: 'up', href: 'not-a-url' }],
+    })).toBeNull();
+    expect(extractPayPalCaptureIdFromRefundResource({})).toBeNull();
   });
 });

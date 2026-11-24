@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { createHash } from 'node:crypto';
 import { getServerSecrets } from '../lib/config.ts';
 import { getSupabaseAdmin } from '../services/supabaseAdmin.ts';
-import { verifyRazorpayWebhookSignature, decimalAmountToCents, processWebhookWithLease } from '../services/paymentSecurity.ts';
+import { verifyRazorpayWebhookSignature, decimalAmountToCents, processWebhookWithLease, extractPayPalCaptureIdFromRefundResource } from '../services/paymentSecurity.ts';
 import { verifyPayPalWebhook } from '../services/paymentProviders.ts';
 
 export const webhooksRouter = Router();
@@ -266,7 +266,7 @@ async function handlePayPalEvent(event: Record<string, unknown>): Promise<void> 
   const eventType = typeof event.event_type === 'string' ? event.event_type : '';
   const resource = event.resource as Record<string, unknown> | undefined;
   if (!resource) {
-    if (['PAYMENT.CAPTURE.COMPLETED', 'PAYMENT.CAPTURE.DENIED', 'PAYMENT.CAPTURE.REFUNDED'].includes(eventType)) {
+    if (['PAYMENT.CAPTURE.COMPLETED', 'PAYMENT.CAPTURE.DENIED', 'PAYMENT.CAPTURE.DECLINED', 'PAYMENT.CAPTURE.REFUNDED'].includes(eventType)) {
       throw new Error('paypal_webhook_resource_missing');
     }
     return;
@@ -310,7 +310,7 @@ async function handlePayPalEvent(event: Record<string, unknown>): Promise<void> 
     return;
   }
 
-  if (eventType === 'PAYMENT.CAPTURE.DENIED') {
+  if (eventType === 'PAYMENT.CAPTURE.DENIED' || eventType === 'PAYMENT.CAPTURE.DECLINED') {
     const order = await findPayPalOrder(paypalProviderOrderId, appOrderId);
     if (!order) throw new Error('webhook_order_missing');
     const { error } = await admin.rpc('mark_order_failed', {
@@ -322,7 +322,7 @@ async function handlePayPalEvent(event: Record<string, unknown>): Promise<void> 
   }
 
   if (eventType === 'PAYMENT.CAPTURE.REFUNDED') {
-    const captureId = typeof related?.capture_id === 'string' ? related.capture_id : '';
+    const captureId = extractPayPalCaptureIdFromRefundResource(resource) || '';
     const refundId = typeof resource.id === 'string' ? resource.id : '';
     const order =
       (captureId ? await findOrderByProviderPaymentId(captureId, 'paypal') : null) ||
