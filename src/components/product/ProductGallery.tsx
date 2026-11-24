@@ -116,7 +116,10 @@ export function ProductGallery({
         <button
           key={tile.id}
           type="button"
-          onClick={() => onOpenPreview('gallery', tile.lightboxIndex)}
+          onClick={() => {
+            setActiveDesktopMediaId(tile.media.id);
+            onOpenPreview('gallery', tile.lightboxIndex);
+          }}
           aria-label={`Inspect ${tile.media.alt || product.name}`}
           className={`group relative w-full text-left rounded-[22px] overflow-hidden border transition-colors cursor-pointer kv-press focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2 ${
             isSelected ? 'border-ink ring-1 ring-ink' : 'border-line hover:border-ink/40'
