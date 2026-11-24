@@ -224,3 +224,34 @@ This file records every engineering decision and assumption made across Kinvai b
 5. **Schema and testing boundary**
    - No migrations, schema edits, policy changes or live catalogue data mutations were performed as part of Prompt 9. Existing tables, admin RLS and the two existing buckets are used.
    - Exact owner flow, non-admin 404, signed download and storefront cover propagation checks are documented in docs/ADMIN_TEST.md. Local TypeScript/lint, unit tests, build, browser QA, real TUS transfer and Gemini calls still require execution in the configured project environment.
+
+
+## Prompt 10: Content, SEO, Performance, QA & Launch
+
+1. **Content and legal boundaries**
+   - Reworked About, How it works, Support, Licence, Privacy, Terms and Refunds into distinct responsive bento compositions. The About page names Manish Talukdar and Arkvoid Inc.; unknown legal/business facts remain explicit [OWNER TO COMPLETE] placeholders.
+   - Support FAQs are searchable and category-filtered. The support form submits to POST /api/contact, which uses Zod validation, same-origin checks, a honeypot, a per-IP rate limit and the existing contact_messages table. The UI only displays success after a successful database insert response.
+   - How-it-works format compatibility is derived from the live published product file_formats values, with common reader examples. The product's own requirement list remains authoritative.
+   - A build-time guard scans src/ and server/ for unresolved [OWNER TO COMPLETE] and OWNER_CONFIRM markers. A production build is intentionally blocked until owner review resolves every marker. Vercel Preview builds skip this production-only gate so the preview can be inspected while owner review is pending.
+   - docs/LEGAL_REVIEW.md requires lawyer review of all three legal drafts. docs/CLAIMS_TO_CONFIRM.md lists unverified operating and commercial claims.
+
+2. **Server-rendered SEO**
+   - Express injects route-specific title, description, canonical, robots, Open Graph and Twitter metadata into HTML requests.
+   - Product metadata reads only published products through Supabase's publishable key; it generates Product/Offer and BreadcrumbList JSON-LD, and includes AggregateRating only when the real rating stats view reports approved review counts. Product JSON-LD source comment points to Google's Product snippet documentation.
+   - Root JSON-LD includes Organization and WebSite/SearchAction. Product/collection lookups and the sitemap cache for 60 seconds. Sitemap includes static public pages, active collections and published products with published_at lastmod. robots.txt disallows /account, /admin, /checkout, /api and /design.
+   - Unknown product slugs receive a server HTTP 404 with the client-side designed not-found route. Other unknown HTML paths use the 404 status and SPA route fallback.
+
+3. **Performance, motion and branding**
+   - Non-home routes are lazy-loaded, keeping checkout/admin/page modules out of the static homepage import graph. Home remains eager so the hero is not delayed by a route chunk.
+   - Added a favicon mark, touch icon asset, web manifest, #F4F2EE theme color, persimmon 20% text-selection highlight and a branded scrollbar.
+   - docs/PERF.md records source-level work and explicitly leaves gzip sizes, 2.5-second hero interaction, Core Web Vitals and font preloads NOT VERIFIED / NOT MEASURED because a production build and real-device profile have not run.
+   - docs/MOTION_AUDIT.md inventories global CSS motion; component-level Motion usage still needs a complete browser/source audit. Reduced-motion CSS is retained.
+
+4. **QA and deployment**
+   - scripts/link-audit.mjs audits rendered DOM anchors and internal paths using Playwright when installed, with instructions in docs/LINK_AUDIT.md. This connector session did not run the script or responsive checks.
+   - docs/DEPLOY.md documents AI Studio/Cloud Run, recommended Google external Application Load Balancer, limited Preview domain-mapping alternative, exact redirect/webhook paths, and DNS values to be copied only from Google Cloud Console.
+   - No Supabase migrations, DNS changes, OAuth configuration, payment activation, production secret writes, or real purchases were performed.
+   - Nest, Converse and Wink reference assets were not attached to this coding turn, so no reference-by-reference visual comparison is claimed. The content layouts use the existing CHARTER and established Kinvai component system.
+
+5. **Explicit verification boundary**
+   - No local repository runtime was available in this connector session. bun run lint, bun run test, bun run build, Playwright/browser QA, breakpoint inspection, gzip bundle measurement, production deploy and live provider/download flows remain NOT VERIFIED. Build is deliberately expected to fail until the marked owner/legal copy is completed.

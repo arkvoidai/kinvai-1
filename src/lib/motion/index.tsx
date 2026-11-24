@@ -6,7 +6,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
-import { motion, useInView, useReducedMotion as useMotionReducedMotion } from 'motion/react';
+import { motion, useReducedMotion as useMotionReducedMotion } from 'motion/react';
 import { useLocation } from 'react-router-dom';
 
 export const KINVAI_SPRING = {
@@ -304,13 +304,13 @@ export function Tilt({
 }
 
 /**
- * CountUp: counts smoothly to target value once visible in viewport.
+ * CountUp: static numeric value. The previous text-counting animation was
+ * removed to keep motion limited to transform and opacity.
  */
 export function CountUp({
   value,
   prefix = '',
   suffix = '',
-  durationMs = 700,
   className = '',
 }: {
   value: number;
@@ -319,37 +319,10 @@ export function CountUp({
   durationMs?: number;
   className?: string;
 }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const isInView = useInView(ref, { once: true, amount: 0.4 });
-  const reduced = useReducedMotion();
-  const [display, setDisplay] = useState(value);
-
-  useEffect(() => {
-    if (!isInView || reduced) {
-      setDisplay(value);
-      return;
-    }
-
-    let rafId = 0;
-    const start = performance.now();
-    const tick = (now: number) => {
-      const elapsed = now - start;
-      const t = Math.min(1, elapsed / durationMs);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setDisplay(Math.round(value * eased));
-      if (t < 1) {
-        rafId = requestAnimationFrame(tick);
-      }
-    };
-    rafId = requestAnimationFrame(tick);
-
-    return () => cancelAnimationFrame(rafId);
-  }, [isInView, reduced, value, durationMs]);
-
   return (
-    <span ref={ref} className={`font-mono tabular-nums ${className}`}>
+    <span className={`font-mono tabular-nums ${className}`}>
       {prefix}
-      {display.toLocaleString('en-US')}
+      {value.toLocaleString('en-US')}
       {suffix}
     </span>
   );
