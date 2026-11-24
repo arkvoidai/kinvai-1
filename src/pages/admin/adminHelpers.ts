@@ -235,6 +235,16 @@ export async function storeProductImage(
       if (clearError) throw clearError;
     }
 
+    const { data: latestMedia, error: sortError } = await client
+      .from('product_media')
+      .select('sort_order')
+      .eq('product_id', product.id)
+      .order('sort_order', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (sortError) throw sortError;
+    const nextSortOrder = (latestMedia?.sort_order ?? -1) + 1;
+
     const { data, error: insertError } = await client
       .from('product_media')
       .insert({
@@ -246,7 +256,7 @@ export async function storeProductImage(
         width: processed.width,
         height: processed.height,
         source,
-        sort_order: Date.now(),
+        sort_order: nextSortOrder,
       })
       .select('*')
       .single();
