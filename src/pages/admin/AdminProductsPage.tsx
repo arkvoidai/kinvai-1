@@ -579,6 +579,12 @@ function FilesManager({ product, files, loading, onFilesChange }: {
           }
           throw registration.error || lookupError || new Error('File metadata could not be registered.');
         }
+        if (
+          existing.storage_path !== pending.objectPath ||
+          existing.checksum_sha256 !== pending.checksum
+        ) {
+          throw new Error('The uploaded file ID is already associated with different content.');
+        }
         registered = existing;
       }
 
@@ -672,6 +678,11 @@ function FilesManager({ product, files, loading, onFilesChange }: {
     }
 
     const pending = pendingUploadRef.current;
+    if (!pending) {
+      setUploadState('error');
+      setUploadError('The upload could not be prepared. Select the file again.');
+      return;
+    }
     if (pending.uploaded) {
       setUploadState('uploading');
       setUploadError('');
