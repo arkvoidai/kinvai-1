@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import {
   ArrowLeft,
   Expand,
+  Eye,
   FileCode2,
   FolderTree,
   Heart,
@@ -20,6 +21,7 @@ import {
   type SecondaryTile,
 } from '../../lib/product/productHelpers';
 import { IconButton, ProductCover, ProductImage, TagPill } from '../primitives';
+import type { ProductPreviewTab } from './ProductPreviewModal';
 
 export interface ProductGalleryProps {
   product: Product;
@@ -30,7 +32,7 @@ export interface ProductGalleryProps {
   onBack: () => void;
   onToggleSave: () => void;
   onShare: () => void;
-  onOpenLightbox: (index: number) => void;
+  onOpenPreview: (tab: ProductPreviewTab, index?: number) => void;
 }
 
 /**
@@ -50,7 +52,7 @@ export function ProductGallery({
   onBack,
   onToggleSave,
   onShare,
-  onOpenLightbox,
+  onOpenPreview,
 }: ProductGalleryProps) {
   const reduced = useReducedMotion();
   const tintBg = accentToBgClass(collection?.accent ?? 'cocoa');
@@ -124,13 +126,7 @@ export function ProductGallery({
         <button
           key={tile.id}
           type="button"
-          onClick={() => {
-            if (isSelected) {
-              onOpenLightbox(tile.lightboxIndex);
-            } else {
-              setActiveDesktopMediaId(tile.media.id);
-            }
-          }}
+          onClick={() => onOpenPreview('gallery', tile.lightboxIndex)}
           aria-label={`Inspect ${tile.media.alt || product.name}`}
           className={`group relative w-full text-left rounded-[22px] overflow-hidden border transition-colors cursor-pointer kv-press focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2 ${
             isSelected ? 'border-ink ring-1 ring-ink' : 'border-line hover:border-ink/40'
@@ -153,9 +149,11 @@ export function ProductGallery({
 
     if (tile.kind === 'file-tree') {
       return (
-        <div
+        <button
           key={tile.id}
-          className={`rounded-[24px] bg-surface border border-line flex flex-col justify-between gap-3 ${
+          type="button"
+          onClick={() => onOpenPreview('archive')}
+          className={`w-full text-left rounded-[24px] bg-surface border border-line flex flex-col justify-between gap-3 cursor-pointer focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2 ${
             compact ? 'p-5 h-full' : 'p-4'
           }`}
           data-peek-tile="file-tree"
@@ -188,15 +186,17 @@ export function ProductGallery({
               )}
             </ul>
           </div>
-        </div>
+        </button>
       );
     }
 
     if (tile.kind === 'formats') {
       return (
-        <div
+        <button
           key={tile.id}
-          className={`rounded-[24px] bg-stone border border-line flex flex-col justify-between gap-3 ${
+          type="button"
+          onClick={() => onOpenPreview('archive')}
+          className={`w-full text-left rounded-[24px] bg-stone border border-line flex flex-col justify-between gap-3 cursor-pointer focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2 ${
             compact ? 'p-5 h-full' : 'p-4'
           }`}
           data-peek-tile="formats"
@@ -218,15 +218,17 @@ export function ProductGallery({
               </span>
             ))}
           </div>
-        </div>
+        </button>
       );
     }
 
     // tile.kind === 'made-for'
     return (
-      <div
+      <button
         key={tile.id}
-        className={`rounded-[24px] bg-surface border border-line flex flex-col justify-between gap-3 ${
+        type="button"
+        onClick={() => onOpenPreview('first-hour')}
+        className={`w-full text-left rounded-[24px] bg-surface border border-line flex flex-col justify-between gap-3 cursor-pointer focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2 ${
           compact ? 'p-5 h-full' : 'p-4'
         }`}
         data-peek-tile="made-for"
@@ -248,7 +250,7 @@ export function ProductGallery({
             </span>
           )}
         </div>
-      </div>
+      </button>
     );
   };
 
@@ -305,8 +307,11 @@ export function ProductGallery({
                 className="w-full shrink-0 snap-center p-4 pt-16 pb-12 flex items-center justify-center"
               >
                 {slide.kind === 'cover' && (
-                  <div
-                    className="w-full max-w-[340px] mx-auto relative"
+                  <button
+                    type="button"
+                    onClick={() => onOpenPreview('gallery', 0)}
+                    aria-label={`Inspect ${product.name} cover`}
+                    className="w-full max-w-[340px] mx-auto relative block cursor-zoom-in rounded-[22px] text-left"
                     style={{ viewTransitionName: transitionName }}
                   >
                     <ProductCover
@@ -318,23 +323,16 @@ export function ProductGallery({
                       sizes="92vw"
                       className="rounded-[22px] shadow-[0_12px_32px_rgba(17,17,17,0.08)]"
                     />
-                    {slide.lightboxIndex !== null && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenLightbox(slide.lightboxIndex!)}
-                        aria-label={`Expand ${product.name} cover image`}
-                        className="absolute bottom-3 right-3 w-11 h-11 rounded-full bg-surface/95 text-ink border border-line inline-flex items-center justify-center shadow-[var(--shadow-float)] cursor-pointer kv-press"
-                      >
-                        <Expand size={17} strokeWidth={1.75} aria-hidden="true" />
-                      </button>
-                    )}
-                  </div>
+                    <span className="absolute bottom-3 left-3 inline-flex items-center gap-2 rounded-full bg-white/90 px-3.5 py-2 text-xs font-medium text-[var(--ink)] border border-[var(--line)] shadow-ambient backdrop-blur-md">
+                      <Eye size={15} /> Inspect preview
+                    </span>
+                  </button>
                 )}
 
                 {slide.kind === 'media' && (
                   <button
                     type="button"
-                    onClick={() => onOpenLightbox(slide.lightboxIndex)}
+                    onClick={() => onOpenPreview('gallery', slide.lightboxIndex)}
                     aria-label={`Open ${slide.alt} in lightbox`}
                     className="w-full max-w-[340px] mx-auto relative rounded-[22px] overflow-hidden cursor-pointer kv-press"
                   >
@@ -406,7 +404,12 @@ export function ProductGallery({
                     <button
                       key={slide.id}
                       type="button"
-                      onClick={() => scrollToMobileSlide(idx)}
+                      onClick={() => {
+                        if (slide.kind === 'cover') onOpenPreview('gallery', 0);
+                        else if (slide.kind === 'media') onOpenPreview('gallery', slide.lightboxIndex);
+                        else if (slide.kind === 'peek-made-for') onOpenPreview('first-hour');
+                        else onOpenPreview('archive');
+                      }}
                       aria-label={`Go to slide ${idx + 1}: ${slide.label}`}
                       aria-current={active ? 'true' : undefined}
                       className={`h-2 rounded-full transition-all duration-200 cursor-pointer ${
@@ -484,7 +487,7 @@ export function ProductGallery({
                 <button
                   type="button"
                   onClick={() => {
-                    if (primaryLightboxIndex !== null) onOpenLightbox(primaryLightboxIndex);
+                    onOpenPreview('gallery', primaryLightboxIndex ?? 0);
                   }}
                   aria-label={`Open ${activeDesktopMedia.alt || product.name} in fullscreen lightbox`}
                   className="block w-full rounded-[24px] overflow-hidden cursor-zoom-in focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-4"
@@ -510,24 +513,12 @@ export function ProductGallery({
                 style={{ viewTransitionName: transitionName }}
                 className="relative"
               >
-                {primaryLightboxIndex !== null ? (
-                  <button
-                    type="button"
-                    onClick={() => onOpenLightbox(primaryLightboxIndex)}
-                    aria-label={`Open ${product.name} cover in fullscreen lightbox`}
-                    className="block w-full rounded-[24px] overflow-hidden cursor-zoom-in focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-4"
-                  >
-                    <ProductCover
-                      product={product}
-                      collection={collection}
-                      ratio="4/5"
-                      size="lg"
-                      priority
-                      sizes="(max-width: 1280px) 48vw, 460px"
-                      className="rounded-[24px] shadow-[0_18px_48px_rgba(17,17,17,0.10)]"
-                    />
-                  </button>
-                ) : (
+                <button
+                  type="button"
+                  onClick={() => onOpenPreview('gallery', primaryLightboxIndex ?? 0)}
+                  aria-label={`Inspect ${product.name} cover preview`}
+                  className="block w-full rounded-[24px] overflow-hidden cursor-zoom-in focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-4"
+                >
                   <ProductCover
                     product={product}
                     collection={collection}
@@ -537,26 +528,21 @@ export function ProductGallery({
                     sizes="(max-width: 1280px) 48vw, 460px"
                     className="rounded-[24px] shadow-[0_18px_48px_rgba(17,17,17,0.10)]"
                   />
-                )}
+                </button>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Lightbox trigger pill bottom-right when real media is available */}
-        {primaryLightboxIndex !== null && (
-          <button
-            type="button"
-            onClick={() => onOpenLightbox(primaryLightboxIndex)}
-            aria-label={`View ${product.name} gallery fullscreen`}
-            className="absolute bottom-5 right-5 z-20 inline-flex items-center gap-2 rounded-full bg-surface/95 border border-line px-3.5 py-2 text-xs font-medium text-ink shadow-[var(--shadow-float)] hover:border-ink transition-colors cursor-pointer kv-press"
-          >
-            <Expand size={15} strokeWidth={1.75} aria-hidden="true" />
-            <span>
-              Inspect{lightboxImages.length > 1 ? ` (${lightboxImages.length})` : ''}
-            </span>
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => onOpenPreview('gallery', primaryLightboxIndex ?? 0)}
+          aria-label={`Inspect ${product.name} preview`}
+          className="absolute bottom-5 left-5 z-20 inline-flex items-center gap-2 rounded-full bg-white/90 px-3.5 py-2 text-xs font-medium text-[var(--ink)] border border-[var(--line)] shadow-ambient backdrop-blur-md hover:border-ink transition-colors cursor-pointer kv-press"
+        >
+          <Eye size={15} strokeWidth={1.75} aria-hidden="true" />
+          <span>Inspect preview</span>
+        </button>
       </div>
 
       {/* Three smaller Wink-inspired gallery / real-data peek tiles beneath main cover */}
