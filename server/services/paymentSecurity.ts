@@ -128,3 +128,35 @@ export async function processWebhookOnce(
   await handleEvent();
   return 'processed';
 }
+
+
+/**
+ * Processes a webhook only after acquiring a database-backed lease.
+ * Failed handlers release the lease into a retryable state. Lease tokens ensure
+ * an expired worker cannot complete an event reclaimed by a later delivery.
+ */
+export async function processWebhookWithLease(
+  claimEvent: () => Promise<string | null>,
+  finishEvent: (claimToken: string, success: boolean, errorMessage?: string) => Promise<void>,
+  handleEvent: () => Promise<void>
+): Promise<'processed' | 'duplicate'> {
+  const claimToken = await claimEvent();
+  if (!claimToken) return 'duplicate';
+
+  try {
+    await handleEvent();
+    await finishEvent(claimToken, true);
+    return 'processed';
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'webhook_processing_failed';
+    try {
+      await finishEvent(claimToken, false, message);
+    } catch (finishError) {
+      console.error(JSON.stringify({
+        event: 'webhook_failure_state_persist_failed',
+        code: finishError instanceof Error ? finishError.name : 'unknown',
+      }));
+    }
+    throw error;
+  }
+}

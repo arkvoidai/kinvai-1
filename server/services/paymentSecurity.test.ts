@@ -5,6 +5,7 @@ import {
   decimalAmountToCents,
   paymentMatchesOrder,
   processWebhookOnce,
+  processWebhookWithLease,
   verifyPayPalWebhookSignature,
   verifyRazorpayCheckoutSignature,
   verifyRazorpayWebhookSignature,
@@ -253,5 +254,46 @@ describe('payment amount and webhook idempotency', () => {
 
     expect(outcome).toBe('processed');
     expect(calls).toEqual(['record', 'handle']);
+  });
+});
+
+
+describe('retryable webhook processing leases', () => {
+  it('acknowledges completed deliveries without re-running the handler', async () => {
+    const claim = vi.fn(async () => null);
+    const finish = vi.fn(async () => undefined);
+    const handle = vi.fn(async () => undefined);
+    const result = await processWebhookWithLease(claim, finish, handle);
+    expect(result).toBe('duplicate');
+    expect(claim).toHaveBeenCalledOnce();
+    expect(finish).not.toHaveBeenCalled();
+    expect(handle).not.toHaveBeenCalled();
+  });
+
+  it('marks a successful delivery processed only after the handler succeeds', async () => {
+    const calls: string[] = [];
+    const result = await processWebhookWithLease(
+      async () => { calls.push('claim'); return 'lease-1'; },
+      async (_token, success) => { calls.push(success ? 'finish-success' : 'finish-failure'); },
+      async () => { calls.push('handle'); }
+    );
+    expect(result).toBe('processed');
+    expect(calls).toEqual(['claim', 'handle', 'finish-success']);
+  });
+
+  it('releases a failed delivery for provider retry and rethrows the handler error', async () => {
+    const finish = vi.fn(async (_token: string, success: boolean, message?: string) => {
+      expect(success).toBe(false);
+      expect(message).toBe('temporary_database_failure');
+    });
+    const handlerError = new Error('temporary_database_failure');
+    await expect(
+      processWebhookWithLease(
+        async () => 'lease-2',
+        finish,
+        async () => { throw handlerError; }
+      )
+    ).rejects.toBe(handlerError);
+    expect(finish).toHaveBeenCalledOnce();
   });
 });

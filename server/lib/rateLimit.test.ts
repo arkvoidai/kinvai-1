@@ -38,3 +38,11 @@ test('MemoryRateLimiter isolates keys independently', () => {
   assert.equal(limiter.check('ip-1', t0 + 10).allowed, false);
   assert.equal(limiter.check('ip-2', t0 + 10).allowed, true);
 });
+
+
+test('rate-limit IP resolution ignores caller-supplied forwarded headers', async () => {
+  const { resolveRateLimitIp } = await import('./rateLimit');
+  expect(resolveRateLimitIp('198.51.100.23', '10.0.0.4')).toBe('198.51.100.23');
+  expect(resolveRateLimitIp(undefined, '10.0.0.4')).toBe('10.0.0.4');
+  expect(resolveRateLimitIp(undefined, undefined)).toBe('unknown');
+});
