@@ -583,30 +583,53 @@ function FilesManager({ product, files, loading, onFilesChange }: {
       },
       onProgress: (uploaded, total) => setProgress(total > 0 ? Math.round((uploaded / total) * 100) : 0),
       onSuccess: async () => {
-        let metadataInserted = false;
+        const registrationInput = {
+          p_product_id: product.id,
+          p_file_id: fileId,
+          p_storage_path: objectPath,
+          p_file_name: selectedFile.name,
+          p_mime_type: selectedFile.type || null,
+          p_size_bytes: selectedFile.size,
+          p_version: versionResult.data.version,
+          p_checksum_sha256: checksum,
+          p_deactivate_existing: isReplacing,
+        };
+
         try {
-          const { data, error } = await client.from('product_files').insert({
-            id: fileId,
-            product_id: product.id,
-            storage_path: objectPath,
-            file_name: selectedFile.name,
-            mime_type: selectedFile.type || null,
-            size_bytes: selectedFile.size,
-            version: versionResult.data.version,
-            checksum_sha256: checksum,
-            is_active: false,
-          }).select('*').single();
-          if (error || !data) throw error || new Error('File metadata could not be saved.');
-          metadataInserted = true;
+          // The RPC is idempotent by file ID, so retrying a lost response cannot
+          // create a second metadata record or roll back a committed replacement.
+          let registration = await client.rpc('register_product_file', registrationInput);
+          if (registration.error) {
+            registration = await client.rpc('register_product_file', registrationInput);
+          }
 
-          const { error: activationError } = await client.rpc('activate_product_file', {
-            p_product_id: product.id,
-            p_file_id: fileId,
-            p_deactivate_existing: isReplacing,
-          });
-          if (activationError) throw activationError;
+          let registered = Array.isArray(registration.data)
+            ? registration.data[0]
+            : registration.data;
 
-          const activatedFile = { ...(data as ProductFile), is_active: true };
+          if (registration.error || !registered || registered.id !== fileId) {
+            const { data: existing, error: lookupError } = await client
+              .from('product_files')
+              .select('*')
+              .eq('id', fileId)
+              .eq('product_id', product.id)
+              .maybeSingle();
+
+            if (lookupError || !existing) {
+              if (!lookupError) {
+                const { error: cleanupError } = await client.storage
+                  .from('product-files')
+                  .remove([objectPath]);
+                if (cleanupError) {
+                  console.error('[kinvai-admin] orphaned upload cleanup failed:', cleanupError.message);
+                }
+              }
+              throw registration.error || lookupError || new Error('File metadata could not be registered.');
+            }
+            registered = existing;
+          }
+
+          const activatedFile = { ...(registered as ProductFile), is_active: true };
           const priorFiles = isReplacing
             ? files.map((item) => ({ ...item, is_active: false }))
             : files;
@@ -619,22 +642,6 @@ function FilesManager({ product, files, loading, onFilesChange }: {
           setUploadState('idle');
           setSelectedFile(null);
         } catch (error) {
-          if (metadataInserted) {
-            const { error: metadataCleanupError } = await client
-              .from('product_files')
-              .delete()
-              .eq('id', fileId)
-              .eq('product_id', product.id);
-            if (metadataCleanupError) {
-              console.error('[kinvai-admin] product file metadata cleanup failed:', metadataCleanupError.message);
-            }
-          }
-          const { error: storageCleanupError } = await client.storage
-            .from('product-files')
-            .remove([objectPath]);
-          if (storageCleanupError) {
-            console.error('[kinvai-admin] product file object cleanup failed:', storageCleanupError.message);
-          }
           setUploadState('error');
           setUploadError(error instanceof Error ? error.message : 'File metadata could not be activated.');
         }
