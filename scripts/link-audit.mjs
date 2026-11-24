@@ -8,7 +8,9 @@ const origin = new URL(previewUrl).origin;
 const initialRoutes = [
   '/', '/shop', '/collections', '/about', '/how-it-works', '/support',
   '/licence', '/legal/privacy', '/legal/terms', '/legal/refunds', '/search',
+  '/definitely-not-a-real-kinvai-route',
 ];
+const expected404Paths = new Set(['/definitely-not-a-real-kinvai-route']);
 const issues = [];
 const discovered = new Set(initialRoutes);
 const visited = new Set();
@@ -33,7 +35,9 @@ try {
     const response = await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {});
     if (!response) issues.push(key + ': no main document response');
-    else if (response.status() >= 400) issues.push(key + ': HTTP ' + response.status());
+    else if (response.status() >= 400 && !(response.status() === 404 && expected404Paths.has(url.pathname))) {
+      issues.push(key + ': HTTP ' + response.status());
+    }
     await page.waitForTimeout(250);
     const anchors = await page.locator('a[href]').evaluateAll((nodes) => nodes.map((node) => ({
       href: node.getAttribute('href'),
