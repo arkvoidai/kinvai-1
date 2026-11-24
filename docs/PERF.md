@@ -34,5 +34,5 @@ Record the Vite chunk output and gzip each emitted `.js` file (for example, `gzi
 - Real-device Core Web Vitals, LCP, INP and CLS.
 - Preloading the two exact above-the-fold font files. The current document preconnects to Google Fonts and requests Geist/Instrument Serif through its stylesheet; exact WOFF2 preload URLs were not validated and are not claimed here.
 - Image loading priority, intrinsic dimensions and below-the-fold lazy-loading, route by route.
-- Whether the current production dataset exceeds the 48-item format-guide fetch page.
+- Runtime query latency for the full published-catalogue format guide and its behavior on a large catalogue.
 - No list virtualization was added; add it only if real catalogue size and profiling demonstrate a need.
