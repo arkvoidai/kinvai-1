@@ -31,9 +31,10 @@ try {
     const key = url.pathname + url.search;
     visited.add(key);
     const response = await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {});
     if (!response) issues.push(key + ': no main document response');
     else if (response.status() >= 400) issues.push(key + ': HTTP ' + response.status());
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(250);
     const anchors = await page.locator('a[href]').evaluateAll((nodes) => nodes.map((node) => ({
       href: node.getAttribute('href'),
       text: (node.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 100),
