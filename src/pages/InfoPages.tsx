@@ -42,6 +42,7 @@ export function AboutPage() {
         <CopyTile eyebrow="THE REASON" heading="The same foundations get rebuilt every week." className="lg:col-span-7 bg-peach">
           A spreadsheet, checklist, project plan or creative framework can take days to assemble before the real work even starts. Kinvai is built around a simple idea: make useful starting systems available as downloadable files, so more time goes into the work only the owner can do.
         </CopyTile>
+        {/* OWNER_CONFIRM: verify that every published product page consistently displays the actual formats, included files, requirements and first steps. */}
         <CopyTile eyebrow="THE STANDARD" heading="A product should say exactly what is inside." className="lg:col-span-5">
           Product pages are intended to show the actual formats, included files, requirements and first steps. The catalogue should be checked against the attached deliverables before a product is published.
         </CopyTile>
