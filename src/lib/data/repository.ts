@@ -424,6 +424,20 @@ export async function getFeatured(limit = 6): Promise<DataEnvelope<Product[]>> {
 
       if (error) {
         logRepositoryError('getFeatured query', error);
+        // Do not show seed product cards when the published live catalogue is available.
+        const { count, error: countError } = await client
+          .from('products')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'published');
+        if (countError) logRepositoryError('getFeatured published count', countError);
+        if ((count ?? 0) > 0) {
+          return {
+            data: [],
+            source: 'supabase',
+            isPreviewData: false,
+            error: 'Featured products could not be loaded from Supabase.',
+          };
+        }
       } else if (data) {
         const parsed = parseArray(ProductSchema, data, 'featured products');
         if (data.length > 0) {
