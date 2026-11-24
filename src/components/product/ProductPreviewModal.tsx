@@ -319,10 +319,10 @@ export function ProductPreviewModal(props: ProductPreviewModalProps) {
               ) : <div className="flex w-full gap-2 sm:w-auto">
                 {inCart
                   ? <button type="button" onClick={onGoToCheckout} className="min-h-[44px] flex-1 rounded-full border border-line-strong bg-surface px-5 text-sm font-medium text-ink hover:border-ink sm:flex-none">Go to checkout</button>
-                  : <button type="button" onClick={onAddToCart} className="min-h-[44px] flex-1 rounded-full border border-line-strong bg-surface px-5 text-sm font-medium text-ink hover:border-ink sm:min-w-[150px] sm:flex-none">
+                  : <button type="button" onClick={onAddToCart} disabled={isPreviewData} className="min-h-[44px] flex-1 rounded-full border border-line-strong bg-surface px-5 text-sm font-medium text-ink hover:border-ink disabled:opacity-45 disabled:cursor-not-allowed sm:min-w-[150px] sm:flex-none">
                       {justAdded ? <span className="inline-flex items-center gap-2"><Check size={16} className="text-success" />Added</span> : 'Add to cart'}
                     </button>}
-                <button type="button" onClick={onBuyNow} disabled={isPreviewData} className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-full bg-ink px-5 text-sm font-medium text-white hover:bg-ink-soft sm:min-w-[142px] sm:flex-none">
+                <button type="button" onClick={onBuyNow} disabled={isPreviewData} className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-full bg-ink px-5 text-sm font-medium text-white hover:bg-ink-soft disabled:opacity-45 disabled:cursor-not-allowed sm:min-w-[142px] sm:flex-none">
                   Buy now <ArrowRight size={15} />
                 </button>
               </div>}
