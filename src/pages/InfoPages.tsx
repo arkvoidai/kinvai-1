@@ -90,14 +90,26 @@ function PublishedFormats() {
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     let active = true;
-    getProducts({ page: 1, pageSize: 48, sort: 'name-asc' }).then((result) => {
-      if (!active) return;
-      if (result.source === 'supabase') {
-        const unique = new Set(result.items.flatMap((product) => product.file_formats || []).map((format) => format.trim()).filter(Boolean));
-        setFormats([...unique].sort((a, b) => a.localeCompare(b)));
+    (async () => {
+      try {
+        const first = await getProducts({ page: 1, pageSize: 48, sort: 'name-asc' });
+        if (!active) return;
+        if (first.source === 'supabase') {
+          const products = [...first.items];
+          for (let page = 2; page <= first.totalPages; page += 1) {
+            const next = await getProducts({ page, pageSize: 48, sort: 'name-asc' });
+            if (next.source !== 'supabase') break;
+            products.push(...next.items);
+          }
+          if (!active) return;
+          const unique = new Set(products.flatMap((product) => product.file_formats || []).map((format) => format.trim()).filter(Boolean));
+          setFormats([...unique].sort((a, b) => a.localeCompare(b)));
+        }
+        setLoaded(true);
+      } catch {
+        if (active) setLoaded(true);
       }
-      setLoaded(true);
-    }).catch(() => { if (active) setLoaded(true); });
+    })();
     return () => { active = false; };
   }, []);
   if (!loaded) return <CopyTile eyebrow="FILE COMPATIBILITY" heading="Formats in the live catalogue"><p>Loading formats from published products…</p></CopyTile>;
