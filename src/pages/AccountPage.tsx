@@ -163,7 +163,6 @@ export function AccountPage() {
     isAdmin,
     loading: authLoading,
     configured,
-    signInWithGoogle,
     signOut,
     refreshProfile,
   } = useAuth();
