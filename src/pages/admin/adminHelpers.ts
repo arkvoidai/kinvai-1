@@ -214,7 +214,7 @@ export async function storeProductImage(
   const basePath = buildProductMediaBasePath(product.id, mediaId);
   const storage = client.storage.from('product-media');
   const uploadedPaths: string[] = [];
-  let metadataInserted = false;
+  let preserveUploadedAssets = false;
 
   try {
     for (const item of processed.variants) {
@@ -228,59 +228,56 @@ export async function storeProductImage(
       uploadedPaths.push(objectPath);
     }
 
-    const { data: latestMedia, error: sortError } = await client
-      .from('product_media')
-      .select('sort_order')
-      .eq('product_id', product.id)
-      .order('sort_order', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (sortError) throw sortError;
-    const nextSortOrder = (latestMedia?.sort_order ?? -1) + 1;
+    const registrationInput = {
+      p_product_id: product.id,
+      p_media_id: mediaId,
+      p_storage_path: basePath,
+      p_alt: cleanAlt,
+      p_width: processed.width,
+      p_height: processed.height,
+      p_source: source,
+      p_set_as_cover: setAsCover,
+    };
 
-    const { data, error: insertError } = await client
-      .from('product_media')
-      .insert({
-        id: mediaId,
-        product_id: product.id,
-        storage_path: basePath,
-        kind: 'gallery',
-        alt: cleanAlt,
-        width: processed.width,
-        height: processed.height,
-        source,
-        sort_order: nextSortOrder,
-      })
-      .select('*')
-      .single();
-    if (insertError || !data) throw insertError || new Error('Image metadata was not saved.');
-    metadataInserted = true;
-
-    if (setAsCover) {
-      const { error: coverError } = await client.rpc('set_product_cover', {
-        p_product_id: product.id,
-        p_media_id: mediaId,
-      });
-      if (coverError) throw coverError;
+    // One idempotent Postgres transaction inserts the media metadata and,
+    // when requested, updates the product's cover pointer and previous cover.
+    let registration = await client.rpc('register_product_media', registrationInput);
+    if (registration.error) {
+      registration = await client.rpc('register_product_media', registrationInput);
     }
 
-    return { ...(data as ProductMedia), kind: setAsCover ? 'cover' : 'gallery' };
-  } catch (error) {
-    if (metadataInserted) {
-      const { error: cleanupError } = await client
+    let registered = Array.isArray(registration.data)
+      ? registration.data[0]
+      : registration.data;
+
+    if (registration.error || !registered || registered.id !== mediaId) {
+      const { data: existing, error: lookupError } = await client
         .from('product_media')
-        .delete()
+        .select('*')
         .eq('id', mediaId)
-        .eq('product_id', product.id);
-      if (cleanupError) {
-        console.error('[kinvai-admin] failed to roll back product media metadata:', cleanupError.message);
+        .eq('product_id', product.id)
+        .maybeSingle();
+
+      if (lookupError) {
+        // Do not remove objects if the registration's commit outcome cannot be read.
+        preserveUploadedAssets = true;
+        throw registration.error || lookupError;
       }
+      if (!existing || existing.storage_path !== basePath || existing.alt !== cleanAlt) {
+        throw registration.error || new Error('Product image metadata could not be registered.');
+      }
+      registered = existing;
     }
-    if (uploadedPaths.length) {
+
+    return registered as ProductMedia;
+  } catch (error) {
+    if (uploadedPaths.length && !preserveUploadedAssets) {
       const { error: cleanupError } = await storage.remove(uploadedPaths);
       if (cleanupError) {
         console.error('[kinvai-admin] failed to clean up incomplete product media upload:', cleanupError.message);
       }
+    } else if (preserveUploadedAssets) {
+      console.error('[kinvai-admin] product media registration outcome is unknown; uploaded variants were retained for safe retry.');
     }
     throw error;
   }
