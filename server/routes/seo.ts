@@ -62,22 +62,33 @@ seoRouter.get('/sitemap.xml', async (_req, res) => {
   const client = getPublicSupabase();
   if (client) {
     try {
-      const [productResult, collectionResult] = await Promise.all([
-        client.from('products').select('slug,published_at').eq('status', 'published').order('published_at', { ascending: false }),
-        client.from('collections').select('slug').eq('is_active', true).order('sort_order', { ascending: true }),
-      ]);
-      if (!productResult.error && productResult.data) {
-        for (const product of productResult.data as SitemapRow[]) {
+      const pageSize = 500;
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await client.from('products')
+          .select('slug,published_at')
+          .eq('status', 'published')
+          .order('published_at', { ascending: false })
+          .range(offset, offset + pageSize - 1);
+        if (error || !data) break;
+        for (const product of data as SitemapRow[]) {
           const loc = escapeXml(siteUrl + '/products/' + encodeURIComponent(product.slug));
           const lastmod = product.published_at ? '<lastmod>' + escapeXml(new Date(product.published_at).toISOString()) + '</lastmod>' : '';
           urls.push('  <url><loc>' + loc + '</loc>' + lastmod + '</url>');
         }
+        if (data.length < pageSize) break;
       }
-      if (!collectionResult.error && collectionResult.data) {
-        for (const collection of collectionResult.data as Array<{ slug: string }>) {
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await client.from('collections')
+          .select('slug')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true })
+          .range(offset, offset + pageSize - 1);
+        if (error || !data) break;
+        for (const collection of data as Array<{ slug: string }>) {
           const loc = escapeXml(siteUrl + '/collections/' + encodeURIComponent(collection.slug));
-          urls.push('  <url><loc>' + loc + '</loc></url>');
+          urls.push('  <url><loc>' + loc + '</url>');
         }
+        if (data.length < pageSize) break;
       }
     } catch (error) {
       console.error('[kinvai-seo] sitemap lookup failed:', error instanceof Error ? error.message : 'unknown');
