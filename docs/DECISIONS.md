@@ -251,6 +251,7 @@ This file records every engineering decision and assumption made across Kinvai b
    - scripts/link-audit.mjs audits rendered DOM anchors and internal paths using Playwright when installed, with instructions in docs/LINK_AUDIT.md. This connector session did not run the script or responsive checks.
    - docs/DEPLOY.md documents AI Studio/Cloud Run, recommended Google external Application Load Balancer, limited Preview domain-mapping alternative, exact redirect/webhook paths, and DNS values to be copied only from Google Cloud Console.
    - No Supabase migrations, DNS changes, OAuth configuration, payment activation, production secret writes, or real purchases were performed.
+   - Nest, Converse and Wink reference assets were not attached to this coding turn, so no reference-by-reference visual comparison is claimed. The content layouts use the existing CHARTER and established Kinvai component system.
 
 5. **Explicit verification boundary**
    - No local repository runtime was available in this connector session. bun run lint, bun run test, bun run build, Playwright/browser QA, breakpoint inspection, gzip bundle measurement, production deploy and live provider/download flows remain NOT VERIFIED. Build is deliberately expected to fail until the marked owner/legal copy is completed.
