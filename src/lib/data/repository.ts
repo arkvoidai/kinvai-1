@@ -186,11 +186,15 @@ export async function getCollections(): Promise<DataEnvelope<Collection[]>> {
         queryError = error.message || 'Could not load collections.';
       } else if (data && data.length > 0) {
         const parsed = parseArray(CollectionSchema, data, 'collections');
-        if (parsed.length > 0) {
-          return { data: parsed, source: 'supabase', isPreviewData: false };
-        }
+        return {
+          data: parsed,
+          source: 'supabase',
+          isPreviewData: false,
+          ...(parsed.length < data.length ? { error: 'Some collection rows could not be read.' } : {}),
+        };
       }
     } catch (err) {
+      logRepositoryError('getCollections', err);
       queryError = err instanceof Error ? err.message : 'Could not load collections.';
     }
   }
@@ -367,7 +371,7 @@ export async function getProducts(params: ProductQueryParams = {}): Promise<Pagi
                 params.priceMax !== undefined ||
                 (params.q && params.q.trim().length > 0)
             );
-            if (data.length > 0 || hasFilters) {
+            if (data.length > 0 || hasFilters || (count ?? 0) > 0) {
               const parsed = parseArray(ProductSchema, data, 'products');
               const total = count ?? parsed.length;
               return {
@@ -384,6 +388,7 @@ export async function getProducts(params: ProductQueryParams = {}): Promise<Pagi
         }
       }
     } catch (err) {
+      logRepositoryError('getProducts', err);
       queryError = err instanceof Error ? err.message : 'Could not load products.';
     }
   }
@@ -416,11 +421,24 @@ export async function getFeatured(limit = 6): Promise<DataEnvelope<Product[]>> {
         .order('featured_rank', { ascending: true, nullsFirst: false })
         .limit(limit);
 
-      if (!error && data && data.length > 0) {
-        const parsed = parseArray(ProductSchema, data, 'products');
-        if (parsed.length > 0) {
-          return { data: parsed, source: 'supabase', isPreviewData: false };
+      if (error) {
+        logRepositoryError('getFeatured query', error);
+      } else if (data) {
+        const parsed = parseArray(ProductSchema, data, 'featured products');
+        if (data.length > 0) {
+          return {
+            data: parsed,
+            source: 'supabase',
+            isPreviewData: false,
+            ...(parsed.length < data.length ? { error: 'Some featured products could not be read.' } : {}),
+          };
         }
+        const { count, error: countError } = await client
+          .from('products')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'published');
+        if (countError) logRepositoryError('getFeatured published count', countError);
+        if ((count ?? 0) > 0) return { data: [], source: 'supabase', isPreviewData: false };
       }
     } catch (err) {
       logRepositoryError('getFeatured', err);
@@ -467,6 +485,7 @@ export async function getRelated(
           if (ordered.length > 0) {
             return { data: ordered, source: 'supabase', isPreviewData: false };
           }
+          return { data: [], source: 'supabase', isPreviewData: false, error: 'Related product rows could not be read.' };
         }
       }
 
@@ -490,6 +509,9 @@ export async function getRelated(
       logRepositoryError('getRelated', err);
     }
   }
+
+  // A Supabase-backed product must never be supplemented with unrelated seed cards.
+  if (currentProduct) return { data: [], source: 'supabase', isPreviewData: false };
 
   if (allowSeedFallback()) {
     const current = currentProduct ?? SEED_PRODUCTS.find((p) => p.id === productId);
@@ -527,9 +549,11 @@ export async function getProductBySlug(
         queryError = error.message || 'Could not load product.';
       } else if (prodRow) {
         const product = parseOne(ProductSchema, prodRow, 'product detail');
-        if (product) {
+        if (!product) {
+          return { data: null, source: 'supabase', isPreviewData: false, error: 'The product data could not be read.' };
+        }
 
-          // Archived products are visible ONLY to signed-in owners (or admins)
+        // Archived products are visible ONLY to signed-in owners (or admins)
           if (product.status === 'archived') {
             const hasAccess =
               Boolean(options?.isAdmin) ||
@@ -554,7 +578,9 @@ export async function getProductBySlug(
             options?.userId ? getUserProductReview(options.userId, product.id) : Promise.resolve(null),
           ]);
 
-          const collectionParsed = colRes.data ? CollectionSchema.safeParse(colRes.data) : null;
+          const collectionParsed = colRes.data ? parseOne(CollectionSchema, colRes.data, 'product collection') : null;
+          if (colRes.error) logRepositoryError('getProductBySlug collection', colRes.error);
+          if (mediaRes.error) logRepositoryError('getProductBySlug media', mediaRes.error);
           const media: ProductMedia[] = mediaRes.data
             ? parseArray(ProductMediaSchema, mediaRes.data, 'product media')
             : [];
@@ -562,7 +588,7 @@ export async function getProductBySlug(
           return {
             data: {
               product,
-              collection: collectionParsed?.success ? collectionParsed.data : null,
+              collection: collectionParsed,
               media,
               related: relatedRes.data,
               ratingStats: stats,
@@ -572,10 +598,6 @@ export async function getProductBySlug(
             source: 'supabase',
             isPreviewData: false,
           };
-        }
-      } else if (prodRow) {
-        // A real row that fails validation is a live-data error, never seed fallback.
-        return { data: null, source: 'supabase', isPreviewData: false, error: 'The product data could not be read.' };
       } else if (!allowSeedFallback()) {
         // Genuine 404 (query succeeded with no matching row)
         return { data: null, source: 'supabase', isPreviewData: false };
@@ -641,7 +663,7 @@ export async function searchProducts(
       if (error) {
         queryError = error.message || 'Search could not be completed.';
       } else if (Array.isArray(data)) {
-        const parsed = parseArray(ProductSchema, data);
+        const parsed = parseArray(ProductSchema, data, 'search products');
         if (parsed.length > 0) {
           return { data: parsed, source: 'supabase', isPreviewData: false };
         }
@@ -664,6 +686,7 @@ export async function searchProducts(
       if (signal?.aborted) {
         return { data: [], source: 'empty', isPreviewData: false };
       }
+      logRepositoryError('searchProducts', err);
       queryError = err instanceof Error ? err.message : 'Search could not be completed.';
     }
   }
@@ -686,10 +709,11 @@ export async function getRatingStats(productId: string): Promise<RatingStats | n
       .maybeSingle();
 
     if (error || !data) return null;
-    const parsed = RatingStatsSchema.safeParse(data);
-    if (!parsed.success || parsed.data.review_count === 0) return null;
-    return parsed.data;
-  } catch {
+    const parsed = parseOne(RatingStatsSchema, data, 'product rating stats');
+    if (!parsed || parsed.review_count === 0) return null;
+    return parsed;
+  } catch (err) {
+    logRepositoryError('getRatingStats', err);
     return null;
   }
 }
@@ -707,7 +731,8 @@ export async function getApprovedReviews(productId: string): Promise<Review[]> {
 
     if (error || !data) return [];
     return parseArray(ReviewSchema, data, 'approved reviews');
-  } catch {
+  } catch (err) {
+    logRepositoryError('getApprovedReviews', err);
     return [];
   }
 }
@@ -727,9 +752,9 @@ export async function getUserProductReview(
       .maybeSingle();
 
     if (error || !data) return null;
-    const parsed = ReviewSchema.safeParse(data);
-    return parsed.success ? parsed.data : null;
-  } catch {
+    return parseOne(ReviewSchema, data, 'user product review');
+  } catch (err) {
+    logRepositoryError('getUserProductReview', err);
     return null;
   }
 }
@@ -786,10 +811,10 @@ export async function submitProductReview(input: {
       };
     }
 
-    const parsed = data ? ReviewSchema.safeParse(data) : null;
+    const parsed = data ? parseOne(ReviewSchema, data, 'submitted product review') : null;
     return {
-      review: parsed?.success
-        ? parsed.data
+      review: parsed
+        ? parsed
         : {
             user_id: input.userId,
             product_id: input.productId,
@@ -801,6 +826,7 @@ export async function submitProductReview(input: {
           },
     };
   } catch (err) {
+    logRepositoryError('submitProductReview', err);
     return {
       review: null,
       error: mapReviewSubmitError(
@@ -823,7 +849,8 @@ export async function getRecentApprovedReviews(limit = 6): Promise<Review[]> {
 
     if (error || !data) return [];
     return parseArray(ReviewSchema, data, 'reviews');
-  } catch {
+  } catch (err) {
+    logRepositoryError('getRecentApprovedReviews', err);
     return [];
   }
 }
@@ -840,7 +867,8 @@ export async function getLibrary(userId: string): Promise<Entitlement[]> {
 
     if (error || !data) return [];
     return parseArray(EntitlementSchema, data, 'library entitlements');
-  } catch {
+  } catch (err) {
+    logRepositoryError('getLibrary', err);
     return [];
   }
 }
@@ -856,7 +884,8 @@ export async function getWishlist(userId: string): Promise<WishlistItem[]> {
 
     if (error || !data) return [];
     return parseArray(WishlistItemSchema, data, 'wishlist items');
-  } catch {
+  } catch (err) {
+    logRepositoryError('getWishlist', err);
     return [];
   }
 }
