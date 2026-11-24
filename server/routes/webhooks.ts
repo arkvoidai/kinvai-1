@@ -217,23 +217,21 @@ async function handleRazorpayEvent(event: Record<string, unknown>): Promise<void
 
   if (eventType === 'refund.processed' && refundEntity) {
     const paymentId = typeof refundEntity.payment_id === 'string' ? refundEntity.payment_id : '';
+    const refundId = typeof refundEntity.id === 'string' ? refundEntity.id : '';
     const order = paymentId ? await findOrderByProviderPaymentId(paymentId, 'razorpay') : null;
-    if (!order) throw new Error('razorpay_refund_order_missing');
+    if (!order || !refundId) throw new Error('razorpay_refund_order_or_id_missing');
 
     const refundAmount = Number(refundEntity.amount);
     if (!Number.isSafeInteger(refundAmount) || refundAmount <= 0) {
       throw new Error('razorpay_refund_amount_invalid');
     }
-
-    const totalRefunded = Math.min(
-      Number(order.total_cents),
-      Number(order.refunded_cents || 0) + refundAmount
-    );
-    const { error } = await admin.rpc('mark_order_refunded', {
+    const { error } = await admin.rpc('apply_order_refund', {
       p_order_id: order.id,
-      p_refunded_cents: totalRefunded,
+      p_provider: 'razorpay',
+      p_provider_refund_id: refundId,
+      p_refund_cents: refundAmount,
     });
-    if (error) throw new Error('razorpay_mark_refunded_failed');
+    if (error) throw new Error('razorpay_apply_refund_failed');
   }
 }
 
@@ -267,7 +265,12 @@ async function handlePayPalEvent(event: Record<string, unknown>): Promise<void> 
 
   const eventType = typeof event.event_type === 'string' ? event.event_type : '';
   const resource = event.resource as Record<string, unknown> | undefined;
-  if (!resource) return;
+  if (!resource) {
+    if (['PAYMENT.CAPTURE.COMPLETED', 'PAYMENT.CAPTURE.DENIED', 'PAYMENT.CAPTURE.REFUNDED'].includes(eventType)) {
+      throw new Error('paypal_webhook_resource_missing');
+    }
+    return;
+  }
 
   const supplementary = resource.supplementary_data as Record<string, unknown> | undefined;
   const related = supplementary?.related_ids as Record<string, unknown> | undefined;
@@ -319,28 +322,22 @@ async function handlePayPalEvent(event: Record<string, unknown>): Promise<void> 
   }
 
   if (eventType === 'PAYMENT.CAPTURE.REFUNDED') {
-    const captureId =
-      typeof related?.capture_id === 'string'
-        ? related.capture_id
-        : typeof resource.id === 'string'
-          ? resource.id
-          : '';
+    const captureId = typeof related?.capture_id === 'string' ? related.capture_id : '';
+    const refundId = typeof resource.id === 'string' ? resource.id : '';
     const order =
       (captureId ? await findOrderByProviderPaymentId(captureId, 'paypal') : null) ||
       await findPayPalOrder(paypalProviderOrderId, appOrderId);
-    if (!order || amountCents === null || amountCents <= 0) {
+    if (!order || !refundId || amountCents === null || amountCents <= 0) {
       throw new Error('paypal_refund_order_or_amount_invalid');
     }
 
-    const totalRefunded = Math.min(
-      Number(order.total_cents),
-      Number(order.refunded_cents || 0) + amountCents
-    );
-    const { error } = await admin.rpc('mark_order_refunded', {
+    const { error } = await admin.rpc('apply_order_refund', {
       p_order_id: order.id,
-      p_refunded_cents: totalRefunded,
+      p_provider: 'paypal',
+      p_provider_refund_id: refundId,
+      p_refund_cents: amountCents,
     });
-    if (error) throw new Error('paypal_mark_refunded_failed');
+    if (error) throw new Error('paypal_apply_refund_failed');
   }
 }
 
