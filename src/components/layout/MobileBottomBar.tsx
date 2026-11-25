@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Heart, Home, Search, Store, User } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthProvider';
