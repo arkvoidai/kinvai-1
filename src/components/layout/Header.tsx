@@ -28,14 +28,11 @@ export function Header() {
   } = useCart();
 
   const [megaOpen, setMegaOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  const [hidden, setHidden] = useState(false);
+
 
   const megaId = useId();
   const openTimerRef = useRef<number | null>(null);
   const closeTimerRef = useRef<number | null>(null);
-  const lastYRef = useRef(0);
-  const headerRef = useRef<HTMLElement>(null);
 
   const clearMegaTimers = useCallback(() => {
     if (openTimerRef.current !== null) {
@@ -76,51 +73,10 @@ export function Header() {
   // Close mega panel and reveal header on route changes
   useEffect(() => {
     setMegaOpen(false);
-    setHidden(false);
-    lastYRef.current = typeof window !== 'undefined' ? window.scrollY : 0;
   }, [pathname]);
 
   useEffect(() => () => clearMegaTimers(), [clearMegaTimers]);
 
-  // Transform-only scroll compaction + 8px threshold hide-on-down / reveal-on-up
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    let rafId = 0;
-
-    const handleScroll = () => {
-      if (rafId !== 0) return;
-      rafId = window.requestAnimationFrame(() => {
-        rafId = 0;
-        const y = window.scrollY;
-        const delta = y - lastYRef.current;
-
-        setScrolled(y > 24);
-
-        if (y <= 64 || megaOpen) {
-          setHidden(false);
-          lastYRef.current = y;
-          return;
-        }
-
-        // Keep header visible while keyboard focus is inside it
-        if (headerRef.current && headerRef.current.contains(document.activeElement)) {
-          setHidden(false);
-          lastYRef.current = y;
-          return;
-        }
-
-        if (Math.abs(delta) < 8) return;
-        setHidden(delta > 0);
-        lastYRef.current = y;
-      });
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => {
-      if (rafId !== 0) window.cancelAnimationFrame(rafId);
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, [megaOpen]);
 
   const firstName =
     profile?.display_name?.trim().split(/\s+/)[0] ||
@@ -131,19 +87,16 @@ export function Header() {
   const isCollectionsRoute =
     pathname === '/collections' || pathname.startsWith('/collections/');
 
-  const pillShadow = scrolled ? 'shadow-[var(--shadow-float)]' : '';
+  const pillShadow = '';
 
   return (
     <header
-      ref={headerRef}
-      className={`sticky top-0 z-[var(--z-header)] pt-2.5 lg:pt-4 pb-2 transition-transform duration-250 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-reduce:transition-none ${
-        hidden ? '-translate-y-[125%]' : 'translate-y-0'
-      }`}
+      className="sticky top-0 z-[var(--z-header)] pt-2.5 lg:pt-4 pb-2"
     >
       {/* MOBILE TOP BAR (<1024px) — 56px */}
       <div className="lg:hidden kv-container">
         <div
-          className={`flex items-center justify-between gap-3 h-14 px-2 rounded-full bg-surface/92 backdrop-blur-md border border-line transition-shadow duration-200 ${pillShadow}`}
+          className={`flex items-center justify-between gap-3 h-14 px-3 rounded-[24px] bg-surface border border-line kv-surface-pill ${pillShadow}`}
         >
           <Link
             to="/"
@@ -178,9 +131,7 @@ export function Header() {
       {/* DESKTOP FLOATING PILL BAR (>=1024px) — 56px pills, separate soft white pills */}
       <div className="hidden lg:block kv-container relative">
         <div
-          className={`origin-top transition-transform duration-200 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-reduce:transition-none ${
-            scrolled ? 'scale-[0.96]' : 'scale-100'
-          }`}
+          className="origin-top kv-header-inner"
         >
           <div className="flex items-center gap-2.5">
             {/* 1. Logo Pill */}
@@ -188,7 +139,7 @@ export function Header() {
               to="/"
               viewTransition
               aria-label="Kinvai home"
-              className={`inline-flex items-center justify-center h-14 px-5 rounded-full bg-surface/95 backdrop-blur-md border border-line hover:border-line-strong transition-colors shrink-0 kv-press ${pillShadow}`}
+              className={`inline-flex items-center justify-center h-[52px] px-5 rounded-full bg-surface/95 backdrop-blur-md border border-line hover:border-line-strong transition-colors shrink-0 kv-press ${pillShadow}`}
             >
               <Logo height={21} />
             </Link>
@@ -198,7 +149,7 @@ export function Header() {
               type="button"
               onClick={() => setCommandSearchOpen(true)}
               aria-label="Search spreadsheets, kits, worlds"
-              className={`group flex-1 min-w-[200px] h-14 pl-5 pr-2 rounded-full bg-surface/95 backdrop-blur-md border border-line hover:border-line-strong transition-colors flex items-center justify-between gap-3 text-left cursor-pointer ${pillShadow}`}
+              className={`group flex-1 min-w-[200px] h-[52px] pl-5 pr-2 rounded-full bg-surface/95 backdrop-blur-md border border-line hover:border-line-strong transition-colors flex items-center justify-between gap-3 text-left cursor-pointer ${pillShadow}`}
             >
               <span className="text-sm text-ink-3 group-hover:text-ink-2 transition-colors truncate">
                 Search spreadsheets, kits, worlds...
