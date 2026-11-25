@@ -83,7 +83,7 @@ export function Header() {
   const avatarInitial = firstName.charAt(0).toUpperCase();
   const isCollectionsRoute =
     pathname === '/collections' || pathname.startsWith('/collections/');
-
+  const pillShadow = '';
 
   return (
     <header
