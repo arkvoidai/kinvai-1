@@ -5,7 +5,7 @@ import type { ProductImageRatio } from './ProductImage';
 export type CoverSize = 'sm' | 'md' | 'lg';
 
 export interface CoverFallbackProps {
-  product: Pick<Product, 'name' | 'sku' | 'file_formats'>;
+  product: Pick<Product, 'name' | 'file_formats'>;
   collection?: Pick<Collection, 'name' | 'accent'> | null;
   accent?: CollectionAccent | null;
   ratio?: ProductImageRatio;
@@ -21,22 +21,6 @@ const RATIO_CLASS: Record<ProductImageRatio, string> = {
   '1/1': 'aspect-square',
   '16/9': 'aspect-video',
 };
-
-/**
- * Extracts a crisp graphic anchor from SKU digits (e.g. "KV-RTS-001" -> "01")
- * or falls back to the product's initial letter.
- */
-function extractAnchorGlyph(sku: string, name: string): string {
-  const match = sku.match(/(\d+)$/);
-  if (match) {
-    const num = parseInt(match[1], 10);
-    if (Number.isFinite(num)) {
-      return num < 10 ? `0${num}` : String(num);
-    }
-  }
-  const initial = name.trim().charAt(0).toUpperCase();
-  return initial || 'K';
-}
 
 /**
  * Auto-fits Geist 600 poster headline so it always feels monumental yet stays <= 3 lines.
@@ -93,7 +77,7 @@ export function CoverFallback({
 }: CoverFallbackProps) {
   const resolvedAccent: CollectionAccent = accent ?? collection?.accent ?? 'cocoa';
   const bgClass = accentToBgClass(resolvedAccent);
-  const anchorGlyph = extractAnchorGlyph(product.sku, product.name);
+  const anchorGlyph = product.name.trim().charAt(0).toUpperCase() || 'K';
   const titleSizeClass = getTitleSizeClass(product.name, size);
   const numeralSizeClass = getNumeralSizeClass(size);
   const paddingClass = getPaddingClass(size, overlaySafe);
@@ -129,16 +113,9 @@ export function CoverFallback({
         {anchorGlyph}
       </span>
 
-      {/* Top metadata band — strictly left-aligned, cleared below card top overlay controls when overlaySafe */}
-      <div className="relative z-10 flex flex-col items-start gap-1 pr-4">
-        <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink/75 tabular-nums leading-none">
-          {product.sku}
-        </span>
-        {collectionLabel && (
-          <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink/55 leading-tight truncate max-w-full">
-            {collectionLabel}
-          </span>
-        )}
+      {/* Keep catalogue covers editorial; SKU remains on product detail pages only. */}
+      <div className="relative z-10 min-h-3 pr-4">
+        {collectionLabel && <span className="text-xs font-medium text-ink/70 truncate max-w-full">{collectionLabel}</span>}
       </div>
 
       {/* Main typographic zone */}
@@ -178,7 +155,7 @@ export function CoverFallback({
             formats.map((fmt) => (
               <span
                 key={fmt}
-                className="font-mono text-[10px] uppercase tracking-[0.08em] text-ink/80 border border-ink/18 bg-ink/[0.03] px-2 py-0.5 rounded-full leading-tight whitespace-nowrap"
+                className="text-[11px] font-medium tracking-[0.01em] text-ink/80 border border-ink/18 bg-ink/[0.03] px-2 py-0.5 rounded-full leading-tight whitespace-nowrap"
               >
                 {fmt}
               </span>

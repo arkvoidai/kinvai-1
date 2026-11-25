@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
 import { Spinner } from './Spinner';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'icon-round' | 'arrow-round';
+export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'volt' | 'icon-round' | 'arrow-round';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -26,6 +26,8 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
     'rounded-full bg-surface text-ink border border-line-strong hover:bg-stone hover:border-ink/25',
   quiet:
     'rounded-full bg-transparent text-ink border border-transparent hover:bg-stone',
+  volt:
+    'rounded-full bg-[var(--volt)] text-ink border border-[var(--volt)] hover:brightness-[0.98] pr-2',
   'icon-round':
     'rounded-full bg-surface text-ink border border-line hover:bg-stone hover:border-line-strong p-0',
   'arrow-round':
@@ -79,6 +81,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     <>
       <Spinner size="sm" label="Loading" />
       {!isRound && children && <span>{children}</span>}
+    </>
+  ) : variant === 'volt' ? (
+    <>
+      <span>{children}</span>
+      <span aria-hidden="true" className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-ink text-white shrink-0">
+        <ArrowUpRight className="kv-arrow-icon" size={18} strokeWidth={1.8} />
+      </span>
     </>
   ) : variant === 'arrow-round' ? (
     <ArrowUpRight className="kv-arrow-icon" size={20} strokeWidth={1.75} aria-hidden="true" />

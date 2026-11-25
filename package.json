@@ -11,7 +11,9 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "audit:links": "node scripts/link-audit.mjs"
+    "audit:links": "node scripts/link-audit.mjs",
+    "motion:check": "node scripts/motion-budget.mjs",
+    "check": "pnpm lint && pnpm test && pnpm motion:check"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

@@ -8,11 +8,12 @@ export type TileVariant =
   | 'tint-rose'
   | 'stone'
   | 'ink'
+  | 'stage'
   | 'image';
 
 export interface TileProps extends HTMLAttributes<HTMLDivElement> {
   variant?: TileVariant;
-  radius?: 'md' | 'lg' | 'xl';
+  radius?: 'md' | 'lg' | 'xl' | '2xl';
   padding?: 'none' | 'sm' | 'md' | 'lg';
   elevated?: boolean;
   children: ReactNode;
@@ -26,6 +27,7 @@ const VARIANT_CLASSES: Record<TileVariant, string> = {
   'tint-rose': 'bg-rose text-ink border border-ink/[0.06]',
   stone: 'bg-stone text-ink border border-line',
   ink: 'bg-ink text-ink-on-dark border border-ink',
+  stage: 'kv-stage text-ink',
   image: 'bg-stone text-ink border border-line overflow-hidden relative',
 };
 
@@ -33,6 +35,7 @@ const RADIUS_CLASSES: Record<NonNullable<TileProps['radius']>, string> = {
   md: 'rounded-[20px]',
   lg: 'rounded-[28px]',
   xl: 'rounded-[36px]',
+  '2xl': 'rounded-[44px]',
 };
 
 const PADDING_CLASSES: Record<NonNullable<TileProps['padding']>, string> = {
@@ -56,9 +59,7 @@ export function Tile({
 }: TileProps) {
   return (
     <div
-      className={`${VARIANT_CLASSES[variant]} ${RADIUS_CLASSES[radius]} ${PADDING_CLASSES[padding]} ${
-        elevated ? 'shadow-[var(--shadow-float)]' : ''
-      } ${className}`.trim()}
+      className={`kv-tile ${VARIANT_CLASSES[variant]} ${RADIUS_CLASSES[radius]} ${PADDING_CLASSES[padding]} ${elevated ? 'kv-tile-elevated' : ''} ${className}`.trim()}
       {...rest}
     >
       {children}
