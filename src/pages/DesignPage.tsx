@@ -69,7 +69,8 @@ const SWATCHES: SwatchSpec[] = [
   { token: '--ink', name: 'Primary Ink', hex: '#111111', textHex: '#F4F2EE', usage: 'Text, primary CTA, footer' },
   { token: '--ink-2', name: 'Secondary Ink', hex: '#55524D', textHex: '#FFFFFF', usage: 'Secondary body text' },
   { token: '--ink-3', name: 'Muted Ink', hex: '#8A867F', textHex: '#FFFFFF', usage: 'Captions only (never body)' },
-  { token: '--brand', name: 'Persimmon', hex: '#FF5B1F', textHex: '#111111', usage: 'Brand dot, focus ring' },
+  { token: '--brand', name: 'Persimmon', hex: '#FF5B1F', textHex: '#111111', usage: 'Brand dot and focus accent' },
+  { token: '--volt', name: 'Volt', hex: '#D9F44E', textHex: '#111111', usage: 'One hero-level action per screen' },
   { token: '--brand-deep', name: 'Persimmon Deep', hex: '#C93A0A', textHex: '#FFFFFF', usage: 'Brand links (AA on white)' },
   { token: '--peach', name: 'Peach (Apricot)', hex: '#FFD9C4', textHex: '#111111', usage: 'Run the Shop collection' },
   { token: '--butter', name: 'Butter', hex: '#FFEFA8', textHex: '#111111', usage: 'Make the Thing collection' },
@@ -196,6 +197,34 @@ export function DesignPage() {
 
   return (
     <div className="kv-container py-8 md:py-14 flex flex-col gap-16 md:gap-24">
+      <section aria-labelledby="p3-contrast" className="flex flex-col gap-5">
+        <div>
+          <span className="type-label text-ink-2">Colour accessibility</span>
+          <h2 id="p3-contrast" className="type-h2 font-semibold text-ink mt-1">Contrast, not decoration</h2>
+          <p className="text-sm text-ink-2 mt-2 max-w-[58ch]">Volt is reserved for a single primary action. Text stays ink; persimmon remains a small brand and focus accent.</p>
+        </div>
+        <div className="overflow-x-auto rounded-[20px] border border-line bg-surface">
+          <table className="w-full min-w-[560px] text-left text-sm">
+            <thead><tr className="border-b border-line text-ink-2"><th className="p-3 font-medium">Pairing</th><th className="p-3 font-medium">Contrast</th><th className="p-3 font-medium">WCAG AA</th><th className="p-3 font-medium">Use</th></tr></thead>
+            <tbody>
+              {[
+                { name: 'Ink on Porcelain', fg: '#111111', bg: '#F4F2EE', use: 'Body and headings' },
+                { name: 'Ink on Volt', fg: '#111111', bg: '#D9F44E', use: 'Hero action label' },
+                { name: 'Ink on Persimmon', fg: '#111111', bg: '#FF5B1F', use: 'Small accent only' },
+                { name: 'White on Ink', fg: '#FFFFFF', bg: '#111111', use: 'Inverse surfaces' },
+              ].map((pair) => {
+                const ratio = contrastRatio(pair.fg, pair.bg);
+                return <tr key={pair.name} className="border-b border-line last:border-0"><td className="p-3 font-medium">{pair.name}</td><td className="p-3 font-mono tabular-nums">{ratio.toFixed(2)}:1</td><td className="p-3">{wcagGrade(ratio)}</td><td className="p-3 text-ink-2">{pair.use}</td></tr>;
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="volt" size="lg" to="/shop">Explore the catalogue</Button>
+          <span className="text-xs text-ink-2">Volt is not used for body copy or decorative panels.</span>
+        </div>
+      </section>
+
       {/* Intro Header */}
       <section className="flex flex-col gap-6">
         <Breadcrumb

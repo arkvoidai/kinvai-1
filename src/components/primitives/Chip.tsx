@@ -22,7 +22,7 @@ export function Chip({
     <button
       type={type}
       aria-pressed={active}
-      className={`inline-flex items-center justify-center gap-2 min-h-[40px] md:min-h-[38px] px-4 rounded-full text-sm font-medium whitespace-nowrap shrink-0 border kv-press cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed ${
+      className={`inline-flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-full text-sm font-medium whitespace-nowrap shrink-0 border kv-press cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed ${
         active
           ? 'bg-ink text-white border-ink'
           : 'bg-surface text-ink border-line hover:bg-stone hover:border-line-strong'

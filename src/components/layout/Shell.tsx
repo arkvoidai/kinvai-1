@@ -30,7 +30,7 @@ export function Shell() {
         </>
       ) : null}
 
-      <main id="main-content" className="flex-1">
+      <main id="main-content" className="flex-1 kv-shell-main">
         <PageTransition>
           <Outlet />
         </PageTransition>

@@ -94,7 +94,7 @@ export function Footer() {
   };
 
   return (
-    <div className="mt-16 md:mt-24 px-3 sm:px-5 lg:px-6 pb-[88px] lg:pb-6">
+    <div className="mt-16 md:mt-24 px-3 sm:px-5 lg:px-6 pb-[var(--mobile-nav-clearance)] lg:pb-6">
       <footer className="max-w-[1360px] mx-auto bg-ink text-ink-on-dark rounded-[36px] overflow-hidden relative">
         <div className="px-6 sm:px-10 lg:px-12 pt-12 sm:pt-16 pb-8 relative z-10">
           {/* Top Row: Brand + Newsletter */}

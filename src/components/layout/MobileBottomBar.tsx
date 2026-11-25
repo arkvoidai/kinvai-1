@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Heart, Home, Search, Store, User } from 'lucide-react';
 import { useAuth } from '../../lib/auth/AuthProvider';
@@ -21,7 +20,7 @@ const TABS: TabDef[] = [
  * Mobile (<1024px) fixed bottom tab bar (64px + safe-area).
  * - Home, Shop, Search, Saved, Account with Lucide icons + visible 11px labels.
  * - Sliding active pill indicator (transform only).
- * - Hides on scroll down, returns on scroll up (8px threshold).
+ * - Remains fixed and fully inset above the safe area; page content reserves its clearance.
  * - Completely omitted on /products/:slug where the sticky buy bar replaces it.
  */
 export function MobileBottomBar() {
@@ -36,45 +35,10 @@ export function MobileBottomBar() {
     openSignInSheet,
   } = useCart();
 
-  const [hidden, setHidden] = useState(false);
-  const lastYRef = useRef(0);
-
   // Never render on product detail pages — sticky buy bar replaces bottom navigation there
   const isProductDetail = pathname.startsWith('/products/') && pathname.length > '/products/'.length;
   const isCheckoutRoute = pathname.startsWith('/checkout');
 
-  useEffect(() => {
-    setHidden(false);
-    lastYRef.current = typeof window !== 'undefined' ? window.scrollY : 0;
-  }, [pathname]);
-
-  useEffect(() => {
-    if (isProductDetail || typeof window === 'undefined') return;
-    let rafId = 0;
-
-    const onScroll = () => {
-      if (rafId !== 0) return;
-      rafId = window.requestAnimationFrame(() => {
-        rafId = 0;
-        const y = window.scrollY;
-        const delta = y - lastYRef.current;
-        if (y <= 48) {
-          setHidden(false);
-          lastYRef.current = y;
-          return;
-        }
-        if (Math.abs(delta) < 8) return;
-        setHidden(delta > 0);
-        lastYRef.current = y;
-      });
-    };
-
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      if (rafId !== 0) window.cancelAnimationFrame(rafId);
-      window.removeEventListener('scroll', onScroll);
-    };
-  }, [isProductDetail]);
 
   if (isProductDetail || isCheckoutRoute) {
     return null;
@@ -120,22 +84,20 @@ export function MobileBottomBar() {
   return (
     <nav
       aria-label="Mobile bottom navigation"
-      className={`lg:hidden fixed inset-x-0 bottom-0 z-[var(--z-header)] px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] pt-1 pointer-events-none transition-transform duration-200 ease-out motion-reduce:transition-none ${
-        hidden ? 'translate-y-[120%]' : 'translate-y-0'
-      }`}
+      className="lg:hidden fixed inset-x-0 bottom-0 z-[var(--z-header)] px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] pt-1 pointer-events-none"
     >
-      <div className="pointer-events-auto relative mx-auto max-w-[460px] h-16 rounded-full bg-surface/95 backdrop-blur-md border border-line shadow-[var(--shadow-float)] p-1.5 grid grid-cols-5 items-center">
+      <div className="pointer-events-auto relative mx-auto max-w-[460px] h-[68px] rounded-[32px] bg-ink border border-ink shadow-[var(--shadow-float)] p-1.5 grid grid-cols-5 items-center">
         {/* Sliding active pill indicator (transform only) */}
         <div
           aria-hidden="true"
-          className="absolute top-1.5 bottom-1.5 left-1.5 w-[calc((100%-12px)/5)] rounded-full bg-ink transition-transform duration-250 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-reduce:transition-none pointer-events-none"
+          className="absolute top-1.5 bottom-1.5 left-1.5 w-[calc((100%-12px)/5)] rounded-full bg-white transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none pointer-events-none"
           style={{ transform: `translateX(${activeIndex * 100}%)` }}
         />
 
         {TABS.map((tab, idx) => {
           const isActive = idx === activeIndex;
-          const iconClass = isActive ? 'text-white' : 'text-ink-2';
-          const labelClass = isActive ? 'text-white' : 'text-ink-2';
+          const iconClass = isActive ? 'text-ink' : 'text-white/80';
+          const labelClass = isActive ? 'text-ink' : 'text-white/80';
 
           return (
             <button
@@ -143,7 +105,7 @@ export function MobileBottomBar() {
               type="button"
               onClick={() => handleTabPress(tab.id)}
               aria-current={isActive ? 'page' : undefined}
-              className="relative z-10 flex flex-col items-center justify-center gap-1 h-full min-h-[48px] rounded-full cursor-pointer kv-press"
+              className="relative z-10 flex flex-col items-center justify-center gap-1 h-full min-h-[56px] rounded-full cursor-pointer kv-press"
             >
               <span className="relative inline-flex items-center justify-center">
                 {tab.id === 'home' && (
@@ -170,7 +132,7 @@ export function MobileBottomBar() {
                   </span>
                 )}
               </span>
-              <span className={`text-[11px] font-medium leading-none ${labelClass}`}>
+              <span className={`text-[10px] font-medium leading-none ${labelClass}`}>
                 {tab.label}
               </span>
             </button>
