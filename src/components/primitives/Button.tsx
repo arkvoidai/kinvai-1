@@ -42,13 +42,13 @@ const INVERTED_VARIANT_CLASSES: Partial<Record<ButtonVariant, string>> = {
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
-  sm: 'min-h-[40px] px-4 text-sm',
+  sm: 'min-h-[44px] px-4 text-sm',
   md: 'min-h-[44px] px-5 text-[15px]',
   lg: 'min-h-[52px] px-7 text-base',
 };
 
 const ROUND_SIZE_CLASSES: Record<ButtonSize, string> = {
-  sm: 'w-10 h-10 min-w-[40px] min-h-[40px]',
+  sm: 'w-11 h-11 min-w-[44px] min-h-[44px]',
   md: 'w-11 h-11 min-w-[44px] min-h-[44px]',
   lg: 'w-12 h-12 min-w-[48px] min-h-[48px]',
 };

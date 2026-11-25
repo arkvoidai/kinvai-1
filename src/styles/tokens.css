@@ -370,7 +370,8 @@ p {
 .kv-scroll-progress { display: none; }
 @keyframes kv-scroll-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @supports (animation-timeline: scroll()) { .kv-scroll-progress { display: block; } .kv-scroll-progress-fill { animation: kv-scroll-progress linear both; animation-timeline: scroll(root block); } }
-@media (min-width: 1024px) { :root { --header-offset: 112px; --mobile-nav-clearance: 0px; } }
+@media (min-width: 1024px) { :root { --header-offset: 112px; --section-gap: 112px; --mobile-nav-clearance: 0px; } }
+@media (min-width: 1440px) { :root { --section-gap: 144px; } }
 @media (max-width: 1023px) { :root { --header-offset: 100px; } }
 @media (max-width: 380px) { :root { --mobile-nav-clearance: calc(84px + env(safe-area-inset-bottom,0px)); } }
 @media (prefers-reduced-motion: reduce), (update: slow) { .kv-float, .kv-marquee-track, .kv-dot-pulse, .kv-skeleton::after, .kv-header-inner { animation: none !important; } }
