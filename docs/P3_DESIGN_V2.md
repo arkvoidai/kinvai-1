@@ -16,6 +16,14 @@ Direction-aware hide/reveal of the header and bottom bar was not reimplemented w
 ## Project constraints
 The repository contains docs/CHARTER.md, docs/MOTION_AUDIT.md and docs/PERF.md. At the time this change was made, docs/AUDIT.md and a separately named DO NOT BREAK contract were not present in docs/. No schema migration or backend contract change was made.
 
+## Automated verification
+- Latest branch-head CI commit: e5f9fd6bb2e1a07dccb70e267d359beeed64aadb.
+- TypeScript validation: passed.
+- Production Vite build: passed.
+- Vitest: 93 tests across 13 files passed.
+- CSS motion-budget guard: passed.
+- These are CI results, not a substitute for browser/device visual QA.
+
 ## Not yet verified
 - Visual review and before/after screenshots at 320, 360, 390, 430, 768, 1024, 1280, 1440 and 1920 CSS px.
 - Playwright checks for tile occupancy (maximum 35% unused tile area), anchor offsets, bottom-nav overlap, focus and working interactions.
