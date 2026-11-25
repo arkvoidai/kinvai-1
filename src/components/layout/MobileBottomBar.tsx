@@ -21,7 +21,7 @@ const TABS: TabDef[] = [
  * Mobile (<1024px) fixed bottom tab bar (64px + safe-area).
  * - Home, Shop, Search, Saved, Account with Lucide icons + visible 11px labels.
  * - Sliding active pill indicator (transform only).
- * - Hides on scroll down, returns on scroll up (8px threshold).
+ * - Remains fixed and fully inset above the safe area; page content reserves its clearance.
  * - Completely omitted on /products/:slug where the sticky buy bar replaces it.
  */
 export function MobileBottomBar() {
@@ -35,7 +35,6 @@ export function MobileBottomBar() {
     signInSheetOpen,
     openSignInSheet,
   } = useCart();
-
 
   // Never render on product detail pages — sticky buy bar replaces bottom navigation there
   const isProductDetail = pathname.startsWith('/products/') && pathname.length > '/products/'.length;

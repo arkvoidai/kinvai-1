@@ -26,7 +26,7 @@ for (const file of files) {
   }
   for (const declaration of source.matchAll(/transition(?:-property)?\s*:\s*([^;]+);/g)) {
     const value = declaration[1].trim().toLowerCase();
-    if (value === 'all' || [...forbidden].some((property) => new RegExp('(?:^|[,\\s])' + property.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&') + '(?:$|[,\\s])').test(value))) {
+    if (value === 'all' || [...forbidden].some((property) => new RegExp('(?:^|[,\\s])' + property + '(?:$|[,\\s])').test(value))) {
       errors.push(file + ': transition targets layout/paint property "' + value + '"');
     }
   }

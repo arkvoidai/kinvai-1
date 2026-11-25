@@ -365,8 +365,11 @@ p {
 .kv-bento > * { min-width: 0; min-height: 0; }
 .kv-bento-tile { max-height: 640px; }
 .kv-shell-main { padding-bottom: var(--mobile-nav-clearance); }
-.kv-header-inner { animation: kv-header-compact linear both; animation-timeline: scroll(root block); animation-range: 0px 80px; }
 @keyframes kv-header-compact { from { transform: scale(1); } to { transform: scale(.97); } }
+@supports (animation-timeline: scroll()) { .kv-header-inner { animation: kv-header-compact linear both; animation-timeline: scroll(root block); animation-range: 0px 80px; } }
+.kv-scroll-progress { display: none; }
+@keyframes kv-scroll-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@supports (animation-timeline: scroll()) { .kv-scroll-progress { display: block; } .kv-scroll-progress-fill { animation: kv-scroll-progress linear both; animation-timeline: scroll(root block); } }
 @media (min-width: 1024px) { :root { --header-offset: 112px; --mobile-nav-clearance: 0px; } }
 @media (max-width: 1023px) { :root { --header-offset: 100px; } }
 @media (max-width: 380px) { :root { --mobile-nav-clearance: calc(84px + env(safe-area-inset-bottom,0px)); } }

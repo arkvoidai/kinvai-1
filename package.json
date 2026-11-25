@@ -13,7 +13,7 @@
     "test": "vitest run",
     "audit:links": "node scripts/link-audit.mjs",
     "motion:check": "node scripts/motion-budget.mjs",
-    "check": "pnpm lint && pnpm test && pnpm motion:check"
+    "check": "tsc --noEmit && vitest run && node scripts/motion-budget.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

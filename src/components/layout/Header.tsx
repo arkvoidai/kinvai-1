@@ -12,8 +12,7 @@ import { CollectionsMegaPanel } from './CollectionsMegaPanel';
  * - Desktop (>=1024px): Floating 16px from top, max-w 1360px, separate 56px soft white pills
  *   (Promax DNA): [Logo] [Search pill with "/" hint + dark round search button]
  *   [Shop] [Collections + mega panel] [How it works] [Saved] [Cart] [Account pill].
- *   Compacts via transform scale(0.96) + shadow on scroll; hides on scroll down and returns
- *   on scroll up (8px threshold) without ever animating height.
+ *   Uses a CSS scroll timeline for subtle transform-only compaction; no JS scroll handler.
  * - Mobile (<1024px): 56px bar with logo left, round search & cart buttons right.
  */
 export function Header() {
@@ -28,7 +27,6 @@ export function Header() {
   } = useCart();
 
   const [megaOpen, setMegaOpen] = useState(false);
-
 
   const megaId = useId();
   const openTimerRef = useRef<number | null>(null);
@@ -77,7 +75,6 @@ export function Header() {
 
   useEffect(() => () => clearMegaTimers(), [clearMegaTimers]);
 
-
   const firstName =
     profile?.display_name?.trim().split(/\s+/)[0] ||
     user?.email?.split('@')[0] ||
@@ -87,7 +84,6 @@ export function Header() {
   const isCollectionsRoute =
     pathname === '/collections' || pathname.startsWith('/collections/');
 
-  const pillShadow = '';
 
   return (
     <header
@@ -96,7 +92,7 @@ export function Header() {
       {/* MOBILE TOP BAR (<1024px) — 56px */}
       <div className="lg:hidden kv-container">
         <div
-          className={`flex items-center justify-between gap-3 h-14 px-3 rounded-[24px] bg-surface border border-line kv-surface-pill ${pillShadow}`}
+          className={`flex items-center justify-between gap-3 h-14 px-3 rounded-[24px] bg-surface border border-line kv-surface-pill`}
         >
           <Link
             to="/"
@@ -139,7 +135,7 @@ export function Header() {
               to="/"
               viewTransition
               aria-label="Kinvai home"
-              className={`inline-flex items-center justify-center h-[52px] px-5 rounded-full bg-surface/95 backdrop-blur-md border border-line hover:border-line-strong transition-colors shrink-0 kv-press ${pillShadow}`}
+              className={`inline-flex items-center justify-center h-[52px] px-5 rounded-full bg-surface/95 backdrop-blur-md border border-line hover:border-line-strong transition-colors shrink-0 kv-press `}
             >
               <Logo height={21} />
             </Link>
